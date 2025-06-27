@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  tasks-service-demo:
+    build: .
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  k6:
+    build: ./k6
+    depends_on:
+      tasks-service-demo:
+        condition: service_healthy
+    environment:
+      - BASE_URL=http://tasks-service-demo:8080
+    volumes:
+      - ./output:/output
+    command: ["run", "test.js"]

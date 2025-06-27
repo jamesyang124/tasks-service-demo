@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+LICENSE
+CLAUDE.md
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Test files
+*_test.go
+*.test
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Environment files
+.env
+.env.local
+
+# Log files
+*.log
