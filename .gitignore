@@ -18,7 +18,6 @@
 go.work
 
 # Built application
-tasks-service-demo
 bin/
 
 # IDE files
