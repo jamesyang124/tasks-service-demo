@@ -2,9 +2,9 @@ package benchmarks
 
 import (
 	"fmt"
-	"testing"
-	"tasks-service-demo/internal/models"
+	"tasks-service-demo/internal/entities"
 	"tasks-service-demo/internal/storage"
+	"testing"
 )
 
 const (
@@ -17,15 +17,15 @@ const (
 // PopulateStore fills a store with test data and logs progress
 func PopulateStore(b *testing.B, store storage.Store, storeName string) {
 	b.Logf("Setting up %d tasks for %s", DatasetSize, storeName)
-	
+
 	for i := 1; i <= DatasetSize; i++ {
-		task := &models.Task{
+		task := &entities.Task{
 			ID:     i,
 			Name:   fmt.Sprintf("%s Task %d", storeName, i),
 			Status: i % 2,
 		}
 		store.Create(task)
-		
+
 		if i%200000 == 0 {
 			b.Logf("Created %d/%d tasks", i, DatasetSize)
 		}
@@ -35,7 +35,7 @@ func PopulateStore(b *testing.B, store storage.Store, storeName string) {
 // GetZipfTargetID returns a target ID following Zipf distribution (80/20 rule)
 func GetZipfTargetID(iteration int) int {
 	hotKeyCount := DatasetSize / 5 // 20% hot keys (200K keys)
-	
+
 	// 80% traffic to hot keys, 20% to cold keys
 	if iteration%10 < 8 {
 		return (iteration % hotKeyCount) + 1
@@ -48,9 +48,9 @@ func GetZipfTargetID(iteration int) int {
 func BenchmarkReadZipf(b *testing.B, store storage.Store, storeName string) {
 	PopulateStore(b, store, storeName)
 	hotKeyCount := DatasetSize / 5
-	
+
 	b.Logf("Setup complete. Starting read benchmark with %d hot keys", hotKeyCount)
-	
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
@@ -66,16 +66,16 @@ func BenchmarkReadZipf(b *testing.B, store storage.Store, storeName string) {
 func BenchmarkWriteZipf(b *testing.B, store storage.Store, storeName string) {
 	PopulateStore(b, store, storeName)
 	hotKeyCount := DatasetSize / 5
-	
+
 	b.Logf("Setup complete. Starting write benchmark with %d hot keys", hotKeyCount)
-	
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
 			targetID := GetZipfTargetID(i)
-			
-			updatedTask := &models.Task{
+
+			updatedTask := &entities.Task{
 				Name:   fmt.Sprintf("Updated %s Task %d", storeName, i),
 				Status: i % 2,
 			}

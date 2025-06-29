@@ -2,7 +2,7 @@ package benchmarks
 
 import (
 	"fmt"
-	"tasks-service-demo/internal/models"
+	"tasks-service-demo/internal/entities"
 	"tasks-service-demo/internal/storage/shard"
 	"testing"
 )
@@ -48,7 +48,7 @@ func BenchmarkDistributedWrite_ShardStore(b *testing.B) {
 		i := 0
 		for pb.Next() {
 			targetID := (i % DatasetSize) + 1
-			updatedTask := &models.Task{
+			updatedTask := &entities.Task{
 				Name:   "Distributed Update Task",
 				Status: i % 2,
 			}
@@ -73,7 +73,7 @@ func BenchmarkDistributedMixed_ShardStore(b *testing.B) {
 			if i%10 < 7 {
 				store.GetByID(targetID)
 			} else {
-				updatedTask := &models.Task{
+				updatedTask := &entities.Task{
 					Name:   "Mixed Update Task",
 					Status: i % 2,
 				}

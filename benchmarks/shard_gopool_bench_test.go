@@ -2,7 +2,7 @@ package benchmarks
 
 import (
 	"fmt"
-	"tasks-service-demo/internal/models"
+	"tasks-service-demo/internal/entities"
 	"tasks-service-demo/internal/storage/shard"
 	"testing"
 )
@@ -59,7 +59,7 @@ func BenchmarkGetAll_Comparison(b *testing.B) {
 
 		// Setup smaller dataset
 		for i := 1; i <= setupSize; i++ {
-			task := &models.Task{
+			task := &entities.Task{
 				ID:     i,
 				Name:   fmt.Sprintf("Task %d", i),
 				Status: i % 2,
@@ -79,7 +79,7 @@ func BenchmarkGetAll_Comparison(b *testing.B) {
 
 		// Setup smaller dataset
 		for i := 1; i <= setupSize; i++ {
-			task := &models.Task{
+			task := &entities.Task{
 				ID:     i,
 				Name:   fmt.Sprintf("Task %d", i),
 				Status: i % 2,

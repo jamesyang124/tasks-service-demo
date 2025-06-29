@@ -1,7 +1,7 @@
 package benchmarks
 
 import (
-	"tasks-service-demo/internal/models"
+	"tasks-service-demo/internal/entities"
 	"tasks-service-demo/internal/storage/naive"
 	"testing"
 )
@@ -43,7 +43,7 @@ func BenchmarkDistributedWrite_MemoryStore(b *testing.B) {
 		i := 0
 		for pb.Next() {
 			targetID := (i % DatasetSize) + 1
-			updatedTask := &models.Task{
+			updatedTask := &entities.Task{
 				Name:   "Distributed Update Task",
 				Status: i % 2,
 			}
@@ -67,7 +67,7 @@ func BenchmarkDistributedMixed_MemoryStore(b *testing.B) {
 			if i%10 < 7 {
 				store.GetByID(targetID)
 			} else {
-				updatedTask := &models.Task{
+				updatedTask := &entities.Task{
 					Name:   "Mixed Update Task",
 					Status: i % 2,
 				}
