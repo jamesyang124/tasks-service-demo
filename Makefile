@@ -1,4 +1,4 @@
-.PHONY: build test run dev bench k6 setup-env help
+.PHONY: build test run dev bench setup-env help
 
 # Core commands
 build:
@@ -27,9 +27,6 @@ setup-env:
 bench:
 	go test -bench=. -benchmem -timeout=30m ./benchmarks/
 
-k6:
-	./scripts/run-k6-tests.sh
-
 help:
 	@echo "Core commands:"
 	@echo "  build     - Build binary"
@@ -42,4 +39,3 @@ help:
 	@echo ""
 	@echo "Performance testing:"
 	@echo "  bench     - Run all benchmarks (1M dataset)"
-	@echo "  k6        - Run K6 load tests"

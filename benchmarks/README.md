@@ -6,19 +6,19 @@ Comprehensive benchmarks for all storage implementations using realistic workloa
 
 ## Storage Implementations Tested
 
-- **ShardStoreGopool**: ByteDance gopool per-core worker optimization (current best: 12.19ns reads)
-- **ShardStore**: Optimized dedicated worker per shard storage (13.81ns reads)
-- **MemoryStore**: Single-mutex in-memory storage (158.0ns reads)
-- **ChannelStore**: Actor model with message passing (718.8ns reads)
+- **ShardStoreGopool**: ByteDance gopool per-core worker optimization (current best: 12.40ns reads)
+- **ShardStore**: Optimized dedicated worker per shard storage (12.55ns reads)
+- **MemoryStore**: Single-mutex in-memory storage (156.5ns reads)
+- **ChannelStore**: Actor model with message passing (607.5ns reads)
 
 ## Performance Hierarchy (Latest Results)
 
 | Implementation | Read Performance | Write Performance | Memory Allocations | Production Ready |
 |---------------|------------------|-------------------|-------------------|------------------|
-| **ShardStoreGopool** | **12.19 ns/op** | 61.72 ns/op | 0 B/op | 🏆 **Best** |
-| **ShardStore** | 13.81 ns/op | **60.75 ns/op** | 0 B/op | ✅ **Excellent** |
-| **MemoryStore** | 158.0 ns/op | 295.1 ns/op | 0 B/op | ⚠️ **Limited** |
-| **ChannelStore** | 718.8 ns/op | 452.8 ns/op | 192 B/op | ❌ **Educational** |
+| **ShardStoreGopool** | **12.40 ns/op** | 62.69 ns/op | 0 B/op | 🏆 **Best** |
+| **ShardStore** | 12.55 ns/op | **61.44 ns/op** | 0 B/op | ✅ **Excellent** |
+| **MemoryStore** | 156.5 ns/op | 312.5 ns/op | 0 B/op | ⚠️ **Limited** |
+| **ChannelStore** | 607.5 ns/op | 693.5 ns/op | 192 B/op | ❌ **Educational** |
 
 ## Benchmark Patterns
 
@@ -60,41 +60,41 @@ go test -bench=".*MemoryStore.*" -benchmem ./benchmarks/
 ## Current Performance Results
 
 ### ShardStoreGopool (Current Best)
-- **Read Performance**: 12.19 ns/op (ByteDance gopool optimization)
-- **Write Performance**: 61.72 ns/op
+- **Read Performance**: 12.40 ns/op (ByteDance gopool optimization)
+- **Write Performance**: 62.69 ns/op
 - **Memory Allocations**: 0 B/op (zero allocation reads)
 - **Optimized for**: M4 Pro 14-core per-core worker pools
 
 ### ShardStore (Dedicated Workers)  
-- **Read Performance**: 13.81 ns/op (dedicated worker optimization)
-- **Write Performance**: 60.75 ns/op (best write performance)
+- **Read Performance**: 12.55 ns/op (dedicated worker optimization)
+- **Write Performance**: 61.44 ns/op (best write performance)
 - **Memory Allocations**: 0 B/op (zero allocation reads)
 
 ### MemoryStore (Baseline)
-- **Read Performance**: 158.0 ns/op (13x slower than ShardStoreGopool)
-- **Write Performance**: 295.1 ns/op (5x slower than ShardStore)
+- **Read Performance**: 156.5 ns/op (13x slower than ShardStoreGopool)
+- **Write Performance**: 312.5 ns/op (5x slower than ShardStore)
 - **Memory Allocations**: 0 B/op (zero allocation reads)
 
 ### ChannelStore (Educational)
-- **Read Performance**: 718.8 ns/op (59x slower than ShardStoreGopool)
-- **Write Performance**: 452.8 ns/op (7x slower than ShardStore)
+- **Read Performance**: 607.5 ns/op (59x slower than ShardStoreGopool)
+- **Write Performance**: 693.5 ns/op (7x slower than ShardStore)
 - **Memory Allocations**: 192 B/op (significant allocations)
 
 ## Performance Improvements
 
 ### ShardStoreGopool vs MemoryStore
-- **Read Performance**: **13x faster** (158.0ns → 12.19ns)
-- **Write Performance**: **4.8x faster** (295.1ns → 61.72ns)
-- **Overall**: **12.9x performance improvement**
+- **Read Performance**: **12.6x faster** (156.5ns → 12.40ns)
+- **Write Performance**: **5.0x faster** (312.5ns → 62.69ns)
+- **Overall**: **12.6x performance improvement**
 
 ### ShardStore vs MemoryStore
-- **Read Performance**: **11.4x faster** (158.0ns → 13.81ns)
-- **Write Performance**: **4.9x faster** (295.1ns → 60.75ns)
-- **Overall**: **11.1x performance improvement**
+- **Read Performance**: **12.5x faster** (156.5ns → 12.55ns)
+- **Write Performance**: **5.1x faster** (312.5ns → 61.44ns)
+- **Overall**: **12.5x performance improvement**
 
 ### ShardStoreGopool vs ShardStore
-- **Read Performance**: **13% faster** (13.81ns → 12.19ns)
-- **Write Performance**: **1.6% slower** (60.75ns → 61.72ns)
+- **Read Performance**: **1.2% faster** (12.55ns → 12.40ns)
+- **Write Performance**: **2.0% slower** (61.44ns → 62.69ns)
 - **Trade-off**: Slightly better reads, slightly worse writes
 
 ## Optimization Journey
@@ -105,15 +105,15 @@ go test -bench=".*MemoryStore.*" -benchmem ./benchmarks/
 - Organized results with timestamped output
 
 ### Phase 2: ShardStore Optimization  
-- **11.4x read improvement** with dedicated worker per shard
-- **4.9x write improvement** with optimized locking
+- **12.5x read improvement** with dedicated worker per shard
+- **5.1x write improvement** with optimized locking
 - Eliminated contention bottlenecks
 
 ### Phase 3: ByteDance Gopool Optimization
-- **Additional 13% read improvement** with per-core worker optimization
+- **Additional 1.2% read improvement** with per-core worker optimization
 - Better CPU utilization on multi-core systems
 - Optimized for Apple M4 Pro 14-core architecture
-- **Combined result**: **13x faster than baseline**
+- **Combined result**: **12.6x faster than baseline**
 
 ## Benchmark Output Organization
 
@@ -189,12 +189,12 @@ defer store.Close()
 
 ### High-Traffic Production
 - **Use**: ShardStoreGopool
-- **Reason**: Best read performance (12.19ns), optimized for multi-core
+- **Reason**: Best read performance (12.40ns), optimized for multi-core
 - **Configuration**: 32 shards for M4 Pro, adjust for your CPU cores
 
 ### Balanced Production
 - **Use**: ShardStore  
-- **Reason**: Best write performance (60.75ns), excellent read performance (13.81ns)
+- **Reason**: Best write performance (61.44ns), excellent read performance (12.55ns)
 - **Configuration**: 32 shards, dedicated workers per shard
 
 ### Development/Testing

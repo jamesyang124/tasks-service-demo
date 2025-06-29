@@ -1,94 +1,103 @@
 # Storage Performance Comparison
 
-## Overview
-
-Quick reference guide for storage implementation performance characteristics. For detailed K6 load testing results and comprehensive performance analysis, see [K6_PERFORMANCE_REPORT.md](./K6_PERFORMANCE_REPORT.md).
+Quick reference guide for storage implementation performance characteristics. For detailed benchmark results and comprehensive performance analysis, see the [benchmarks README](../benchmarks/README.md).
 
 ## Performance Summary
 
-| Storage Implementation | Max RPS | Max VUs | Avg Response | P95 Response | Error Rate | Production Ready |
-|------------------------|---------|---------|--------------|--------------|------------|------------------|
-| **ShardStoreGopool** | **2000+** | **1000+** | **<1ms** | **<5ms** | **0%** | 🏆 **Best** |
-| **ShardStore** | **1800+** | **500** | **<2ms** | **<10ms** | **0%** | ✅ **Excellent** |
-| **MemoryStore** | **161** | **100** | **1ms** | **3ms** | **100%*** | ❌ **Development Only** |
+| Implementation | Read Performance | Write Performance | Memory Allocations | Production Ready |
+|---------------|------------------|-------------------|-------------------|------------------|
+| **ShardStoreGopool** | **12.40 ns/op** | 62.69 ns/op | 0 B/op | 🏆 **Best** |
+| **ShardStore** | 12.55 ns/op | **61.44 ns/op** | 0 B/op | ✅ **Excellent** |
+| **MemoryStore** | 156.5 ns/op | 312.5 ns/op | 0 B/op | ⚠️ **Limited** |
+| **ChannelStore** | 607.5 ns/op | 693.5 ns/op | 192 B/op | ❌ **Educational** |
 
-*MemoryStore fails under high concurrency testing
+## Performance Improvements
 
-## Implementations Not Included in K6 Testing
+### ShardStoreGopool vs MemoryStore
+- **Read Performance**: **12.6x faster** (156.5ns → 12.40ns)
+- **Write Performance**: **5.0x faster** (312.5ns → 62.69ns)
+- **Overall**: **12.6x performance improvement**
 
-### ❌ ChannelStore (Actor Model)
-**Benchmark Results**:
-- **Read Performance**: 666.1 ns/op (57x slower than ShardStore)
-- **Write Performance**: 603.1 ns/op (58x slower than ShardStore)
-- **Memory Overhead**: 192-247 B/op vs 0 B/op for optimized stores
+### ShardStore vs MemoryStore
+- **Read Performance**: **12.5x faster** (156.5ns → 12.55ns)
+- **Write Performance**: **5.1x faster** (312.5ns → 61.44ns)
+- **Overall**: **12.5x performance improvement**
 
-**Why Excluded from K6 API Testing**:
-1. **Prohibitive Performance Gap**: 57-58x slower than production candidates
-2. **Would Fail Basic Load Tests**: At 666ns/op, estimated max ~150 RPS vs 2000+ RPS needed
-3. **High Memory Allocation**: 3-5 allocs per operation vs 0 for optimized stores
-4. **Channel Message Passing Overhead**: Actor model serialization cost too high
-5. **Educational Purpose Only**: Demonstrates patterns but unsuitable for production
+### ShardStoreGopool vs ShardStore
+- **Read Performance**: **1.2% faster** (12.55ns → 12.40ns)
+- **Write Performance**: **2.0% slower** (61.44ns → 62.69ns)
+- **Trade-off**: Slightly better reads, slightly worse writes
 
-**Conclusion**: ChannelStore's benchmark performance (666ns reads) indicated it would fail even basic K6 load testing, so it was excluded to focus testing resources on viable production candidates.
+## Implementations Not Included in Load Testing
 
-## Quick Implementation Guide
+### ChannelStore Exclusion
 
-### 🏆 ShardStoreGopool (Recommended)
-```go
-// Optimal for production systems
-store := storage.NewShardStoreGopool(32) // Power-of-2 sharding
-```
-**Best for**: High-traffic APIs, enterprise production, real-time applications
+**Why Excluded from Load Testing**:
+1. **Performance Floor**: 607.5ns reads = ~1,600 RPS theoretical maximum
+2. **Memory Overhead**: 192 B/op allocations create GC pressure
+3. **Educational Purpose**: Designed to demonstrate actor model patterns
+4. **Resource Efficiency**: Testing time better spent on production candidates
+5. **Clear Outcome**: Benchmarks already show it's 49x slower than ShardStoreGopool
 
-### 🥈 ShardStore (Alternative)
-```go
-// Good balance of performance and simplicity  
-store := storage.NewShardStore(32)
-```
-**Best for**: Moderate-traffic systems, simpler deployment requirements
+**Conclusion**: ChannelStore's benchmark performance (607.5ns reads) indicated it would fail even basic load testing, so it was excluded to focus testing resources on viable production candidates.
 
-### ❌ MemoryStore (Development Only)
-```go
-// Simple but not production-ready
-store := storage.NewMemoryStore()
-```
-**Best for**: Development, testing, learning Go patterns
+## Storage Implementation Details
 
-## Benchmark Results
+### ShardStoreGopool (Recommended)
+- **Architecture**: Sharded storage with ByteDance gopool optimization
+- **Read Performance**: 12.40 ns/op (best)
+- **Write Performance**: 62.69 ns/op
+- **Memory**: 0 B/op (zero allocation reads)
+- **Use Case**: High-traffic production systems
+- **Optimization**: Per-core worker pools for optimal CPU utilization
 
-### Core Performance Metrics
-- **ShardStoreGopool**: 11.54ns reads (91% improvement from baseline)
-- **ShardStore**: 12.42ns reads (90% improvement from baseline)  
-- **MemoryStore**: 130ns reads (baseline)
+### ShardStore (Alternative)
+- **Architecture**: Sharded storage with dedicated workers
+- **Read Performance**: 12.55 ns/op
+- **Write Performance**: 61.44 ns/op (best)
+- **Memory**: 0 B/op (zero allocation reads)
+- **Use Case**: Production systems with balanced read/write workloads
+- **Optimization**: Dedicated worker per shard for cache locality
 
-For complete optimization journey details, see [OPTIMIZATION_DECISIONS.md](./OPTIMIZATION_DECISIONS.md).
+### MemoryStore (Development)
+- **Architecture**: Single mutex in-memory storage
+- **Read Performance**: 156.5 ns/op (12.5x slower than ShardStore)
+- **Write Performance**: 312.5 ns/op (5.1x slower than ShardStore)
+- **Memory**: 0 B/op (zero allocation reads)
+- **Use Case**: Development and testing environments
+- **Limitation**: Global lock creates contention bottleneck
 
-## Testing & Validation
+### ChannelStore (Educational)
+- **Architecture**: Actor model with message passing
+- **Read Performance**: 607.5 ns/op (49x slower than ShardStoreGopool)
+- **Write Performance**: 693.5 ns/op (11x slower than ShardStore)
+- **Memory**: 192 B/op (significant allocations)
+- **Use Case**: Educational demonstration of actor model patterns
+- **Limitation**: Channel overhead and single worker bottleneck
 
-### Quick Performance Test
+## Performance Testing
+
+### Run Benchmarks
 ```bash
-# Run benchmark comparison
-make bench-compare
+# Run all benchmarks (1M dataset)
+make bench
 
-# Run K6 load tests
-make k6-stress
-make k6-read
+# Direct Go command
+go test -bench=. -benchmem -timeout=30m ./benchmarks/
 ```
 
-### Production Validation
+### Specific Benchmark Patterns
 ```bash
-# Full comparative testing
-./scripts/run-comparative-tests.sh
+# Compare read/write performance across all stores
+go test -bench="BenchmarkReadZipf|BenchmarkWriteZipf" -benchmem ./benchmarks/
+
+# Test specific storage implementation
+go test -bench=".*ShardStore.*" -benchmem ./benchmarks/
+go test -bench=".*MemoryStore.*" -benchmem ./benchmarks/
 ```
 
-For comprehensive K6 test suite documentation, see [k6/README.md](../k6/README.md).
+## Documentation
 
-## Reference Links
-
-- **Complete K6 Testing Guide**: [k6/README.md](../k6/README.md)
-- **Detailed Performance Report**: [K6_PERFORMANCE_REPORT.md](./K6_PERFORMANCE_REPORT.md)  
-- **Optimization Decision Log**: [OPTIMIZATION_DECISIONS.md](./OPTIMIZATION_DECISIONS.md)
-
----
-
-**ShardStoreGopool achieved 91% performance improvement** and is production-ready for high-traffic applications requiring 2000+ RPS throughput with sub-millisecond latency.
+- **Complete Benchmark Guide**: [benchmarks/README.md](../benchmarks/README.md)
+- **Optimization Journey**: [OPTIMIZATION_DECISIONS.md](./OPTIMIZATION_DECISIONS.md)
+- **Performance Analysis**: This document

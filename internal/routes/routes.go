@@ -22,24 +22,24 @@ func SetupRoutes(app *fiber.App, taskService *services.TaskService) {
 	app.Get("/version", handlers.VersionHandler)
 
 	// Task API endpoints
-	app.Get("tasks", taskHandler.GetAllTasks)
+	app.Get("/tasks", taskHandler.GetAllTasks)
 
-	app.Get("tasks/:id",
+	app.Get("/tasks/:id",
 		middleware.ValidatePathID(),
 		taskHandler.GetTaskByID,
 	)
 
-	app.Delete("tasks/:id",
+	app.Delete("/tasks/:id",
 		middleware.ValidatePathID(),
 		taskHandler.DeleteTask,
 	)
 
-	app.Post("tasks",
+	app.Post("/tasks",
 		middleware.ValidateRequest[requests.CreateTaskRequest](),
 		taskHandler.CreateTask,
 	)
 
-	app.Put("tasks/:id",
+	app.Put("/tasks/:id",
 		middleware.ValidatePathID(),
 		middleware.ValidateRequest[requests.UpdateTaskRequest](),
 		taskHandler.UpdateTask,
