@@ -7,13 +7,18 @@ import (
 )
 
 func TestNewShardStore(t *testing.T) {
-	// Test default shards (now CPU cores * 2, min 4, max 16)
+	// Test default shards (now CPU cores * 2, min 4, max 64, rounded to power of 2)
 	store := NewShardStore(0)
-	if store.numShards < 4 || store.numShards > 16 {
-		t.Errorf("Expected 4-16 default shards based on CPU cores, got %d", store.numShards)
+	if store.numShards < 4 || store.numShards > 64 {
+		t.Errorf("Expected 4-64 default shards based on CPU cores, got %d", store.numShards)
 	}
 	
-	// Test custom shards
+	// Verify it's a power of 2
+	if !isPowerOfTwo(store.numShards) {
+		t.Errorf("Expected power of 2 shard count, got %d", store.numShards)
+	}
+	
+	// Test custom shards (8 is already power of 2)
 	store = NewShardStore(8)
 	if store.numShards != 8 {
 		t.Errorf("Expected 8 shards, got %d", store.numShards)
@@ -21,6 +26,12 @@ func TestNewShardStore(t *testing.T) {
 	
 	if len(store.shards) != 8 {
 		t.Errorf("Expected 8 shard instances, got %d", len(store.shards))
+	}
+	
+	// Test non-power-of-2 input gets rounded up
+	store = NewShardStore(5)
+	if store.numShards != 8 { // 5 should round up to 8
+		t.Errorf("Expected 5 to round up to 8 shards, got %d", store.numShards)
 	}
 }
 

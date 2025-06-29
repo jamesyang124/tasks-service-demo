@@ -70,52 +70,25 @@ The server will start on `http://localhost:8080`
 
 ### High-Load Benchmark Results:
 
-Write-Heavy Workloads:
-- High Load Write: ShardStore 38% faster (233ns vs 377ns)
-- Write Heavy (80% writes): ShardStore 16% faster (220ns vs 263ns)
+  Key Performance Insights (1M Dataset):
 
-Read-Heavy Workloads:
-- High Load Read: Nearly identical (132ns vs 128ns)
-- Read Heavy (90% reads): MemoryStore 52% faster (56ns vs 116ns)
+  | Scenario          | MemoryStore | ShardStore | Winner & Gain      |
+  |-------------------|-------------|------------|--------------------|
+  | Read Zipf         | 129.9 ns    | 131.3 ns   | MemoryStore +1.1%  |
+  | Write Zipf        | 211.3 ns    | 157.1 ns   | ShardStore +25.6%  |
+  | Distributed Read  | 129.6 ns    | 157.8 ns   | MemoryStore +17.9% |
+  | Distributed Write | 215.0 ns    | 154.0 ns   | ShardStore +28.4%  |
+  | Distributed Mixed | 108.9 ns    | 155.9 ns   | MemoryStore +30.2% |
 
-Key Findings:
-1. ShardStore dominates write-heavy scenarios - significant performance gains under concurrent writes
-2. MemoryStore better for read-heavy - single mutex more efficient for mostly-read workloads
-3. Trade-off: ShardStore sacrifices some read performance for massive write performance gains
+  Clear Recommendations:
 
-Use Cases:
-- High writes/mixed: Use ShardStore with 8-16 shards
-- Read-heavy: Consider MemoryStore for maximum read performance
-- Balanced: ShardStore provides good overall performance
+  ✅ Use MemoryStore for: Read-heavy & mixed workloads✅ Use ShardStore for: Write-heavy workloads (25-28% faster)
 
-Result:
-- Concurrent Create: ShardStore 37% faster (238ns vs 380ns)
-- Concurrent Read: ShardStore 15% faster (133ns vs 157ns)
-- Sequential: Nearly identical performance
-- Scale: ShardStore maintains consistent performance at all scales
+  Available Commands:
 
-### Hot Key Benchmark Results:
-
-Single Hot Key (Same Key Access):
-- Write: MemoryStore 16% faster (109ns vs 130ns) - single mutex more efficient
-- Read: MemoryStore 31% faster (106ns vs 155ns) - no shard lookup overhead
-
-Interleaved Read-Write (5 Hot Keys):
-- Mixed: ShardStore 4% faster (54ns vs 56ns) - sharding helps distribute load
-
-Worst Case (Keys on Same Shard):
-- Mixed: MemoryStore 23% faster (61ns vs 80ns) - sharding overhead without benefit
-
-Zipf Distribution (Realistic Hot Keys):
-- Mixed: ShardStore 21% faster (102ns vs 130ns) - sharding distributes hot keys across shards
-
-Makefile Commands:
-
-- make bench - All benchmarks
-- make bench-compare - Direct store comparisons
-- make bench-memory - MemoryStore only
-- make bench-shard - ShardStore only
-- make bench-save - Save results to output/
+  - make bench - Run all 5 benchmarks
+  - make bench-save - Save results to output/
+  - Individual scenario commands available
 
 ## API Examples
 
