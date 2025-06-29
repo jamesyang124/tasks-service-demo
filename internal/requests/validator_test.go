@@ -1,6 +1,8 @@
-package models
+package requests
 
 import (
+	"tasks-service-demo/internal/entities"
+	"tasks-service-demo/internal/errors"
 	"testing"
 )
 
@@ -46,18 +48,9 @@ func TestValidateStruct_CreateTaskRequest_ValidationErrors(t *testing.T) {
 				return
 			}
 
-			validationErr, ok := err.(*ValidationError)
-			if !ok {
-				t.Errorf("Expected ValidationError, got %T", err)
-				return
-			}
-
-			if validationErr.Field != tt.expectedField {
-				t.Errorf("Expected field '%s', got '%s'", tt.expectedField, validationErr.Field)
-			}
-
-			if validationErr.Message != tt.expectedMsg {
-				t.Errorf("Expected message '%s', got '%s'", tt.expectedMsg, validationErr.Message)
+			appErr := err
+			if appErr.Message != tt.expectedMsg {
+				t.Errorf("Expected message '%s', got '%s'", tt.expectedMsg, appErr.Message)
 			}
 		})
 	}
@@ -78,27 +71,28 @@ func TestValidateStruct_UpdateTaskRequest(t *testing.T) {
 }
 
 func TestValidateStruct_Task(t *testing.T) {
-	validTask := Task{ID: 1, Name: "Test Task", Status: 0}
+	validTask := entities.Task{ID: 1, Name: "Test Task", Status: 0}
 	err := ValidateStruct(&validTask)
 	if err != nil {
 		t.Errorf("Expected no validation error for valid task, got: %v", err)
 	}
 
-	invalidTask := Task{ID: 1, Name: "", Status: 0}
+	invalidTask := entities.Task{ID: 1, Name: "", Status: 0}
 	err = ValidateStruct(&invalidTask)
 	if err == nil {
 		t.Error("Expected validation error for empty name")
 	}
 }
 
-func TestValidationError_Error(t *testing.T) {
-	err := &ValidationError{
-		Field:   "name",
-		Message: "name is required",
-	}
+func TestValidationError_Struct(t *testing.T) {
+	err := errors.NewValidationError(errors.ErrCodeTaskNameRequired, "name is required")
 
 	expected := "name is required"
 	if err.Error() != expected {
 		t.Errorf("Expected error message '%s', got '%s'", expected, err.Error())
+	}
+
+	if err.Code != errors.ErrCodeTaskNameRequired {
+		t.Errorf("Expected code '%d', got '%d'", errors.ErrCodeTaskNameRequired, err.Code)
 	}
 }

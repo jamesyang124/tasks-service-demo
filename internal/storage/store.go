@@ -2,16 +2,17 @@ package storage
 
 import (
 	"sync"
-	"tasks-service-demo/internal/models"
+	"tasks-service-demo/internal/entities"
+	apperrors "tasks-service-demo/internal/errors"
 )
 
 // Store defines the interface for all storage implementations
 type Store interface {
-	Create(task *models.Task) error
-	GetByID(id int) (*models.Task, error)
-	GetAll() []*models.Task
-	Update(id int, task *models.Task) error
-	Delete(id int) error
+	Create(task *entities.Task) *apperrors.AppError         // Creates a new task
+	GetByID(id int) (*entities.Task, *apperrors.AppError)   // Retrieves a task by ID
+	GetAll() []*entities.Task                               // Retrieves all tasks
+	Update(id int, task *entities.Task) *apperrors.AppError // Updates an existing task
+	Delete(id int) *apperrors.AppError                      // Deletes a task by ID
 }
 
 // Singleton pattern for application-wide store instance
@@ -35,4 +36,5 @@ func GetStore() Store {
 // ResetStore reset store instance
 func ResetStore() {
 	instance = nil
+	once = sync.Once{}
 }

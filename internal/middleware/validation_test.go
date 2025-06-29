@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http/httptest"
+	"tasks-service-demo/internal/requests"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
-	"tasks-service-demo/internal/models"
 )
 
 func setupTestApp() *fiber.App {
@@ -17,14 +17,14 @@ func setupTestApp() *fiber.App {
 func TestValidateRequest_Success(t *testing.T) {
 	app := setupTestApp()
 
-	app.Post("/test", ValidateRequest[models.CreateTaskRequest](), func(c *fiber.Ctx) error {
-		req := GetValidatedRequest[models.CreateTaskRequest](c)
+	app.Post("/test", ValidateRequest[requests.CreateTaskRequest](), func(c *fiber.Ctx) error {
+		req := GetValidatedRequest[requests.CreateTaskRequest](c)
 		return c.JSON(fiber.Map{
 			"received": req,
 		})
 	})
 
-	taskReq := models.CreateTaskRequest{
+	taskReq := requests.CreateTaskRequest{
 		Name:   "Test Task",
 		Status: 0,
 	}
@@ -45,7 +45,7 @@ func TestValidateRequest_Success(t *testing.T) {
 func TestValidateRequest_InvalidJSON(t *testing.T) {
 	app := setupTestApp()
 
-	app.Post("/test", ValidateRequest[models.CreateTaskRequest](), func(c *fiber.Ctx) error {
+	app.Post("/test", ValidateRequest[requests.CreateTaskRequest](), func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"success": true})
 	})
 
@@ -64,16 +64,16 @@ func TestValidateRequest_InvalidJSON(t *testing.T) {
 func TestValidateRequest_ValidationError(t *testing.T) {
 	app := setupTestApp()
 
-	app.Post("/test", ValidateRequest[models.CreateTaskRequest](), func(c *fiber.Ctx) error {
+	app.Post("/test", ValidateRequest[requests.CreateTaskRequest](), func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"success": true})
 	})
 
 	tests := []struct {
 		name string
-		req  models.CreateTaskRequest
+		req  requests.CreateTaskRequest
 	}{
-		{"empty name", models.CreateTaskRequest{Name: "", Status: 0}},
-		{"invalid status", models.CreateTaskRequest{Name: "Test", Status: 2}},
+		{"empty name", requests.CreateTaskRequest{Name: "", Status: 0}},
+		{"invalid status", requests.CreateTaskRequest{Name: "Test", Status: 2}},
 	}
 
 	for _, tt := range tests {
@@ -146,7 +146,7 @@ func TestGetValidatedRequest_WithoutMiddleware(t *testing.T) {
 	app := setupTestApp()
 
 	app.Get("/test", func(c *fiber.Ctx) error {
-		req := GetValidatedRequest[models.CreateTaskRequest](c)
+		req := GetValidatedRequest[requests.CreateTaskRequest](c)
 		// Should return zero value when no validated request is stored
 		if req.Name != "" || req.Status != 0 {
 			t.Error("Expected zero value for request when middleware not used")

@@ -8,8 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"tasks-service-demo/internal/entities"
 	"tasks-service-demo/internal/middleware"
-	"tasks-service-demo/internal/models"
+	"tasks-service-demo/internal/requests"
 	"tasks-service-demo/internal/services"
 	"tasks-service-demo/internal/storage"
 	"tasks-service-demo/internal/storage/naive"
@@ -41,7 +42,7 @@ func TestGetAllTasks_EmptyStore(t *testing.T) {
 	}
 
 	body, _ := io.ReadAll(resp.Body)
-	var tasks []models.Task
+	var tasks []entities.Task
 	if err := json.Unmarshal(body, &tasks); err != nil {
 		t.Fatal(err)
 	}
@@ -53,9 +54,9 @@ func TestGetAllTasks_EmptyStore(t *testing.T) {
 
 func TestCreateTask_Success(t *testing.T) {
 	app, handler := setupTestApp()
-	app.Post("/tasks", middleware.ValidateRequest[models.CreateTaskRequest](), handler.CreateTask)
+	app.Post("/tasks", middleware.ValidateRequest[requests.CreateTaskRequest](), handler.CreateTask)
 
-	taskReq := models.CreateTaskRequest{
+	taskReq := requests.CreateTaskRequest{
 		Name:   "Test Task",
 		Status: 0,
 	}
@@ -73,7 +74,7 @@ func TestCreateTask_Success(t *testing.T) {
 	}
 
 	body, _ := io.ReadAll(resp.Body)
-	var task models.Task
+	var task entities.Task
 	if err := json.Unmarshal(body, &task); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +92,7 @@ func TestCreateTask_Success(t *testing.T) {
 
 func TestCreateTask_InvalidJSON(t *testing.T) {
 	app, handler := setupTestApp()
-	app.Post("/tasks", middleware.ValidateRequest[models.CreateTaskRequest](), handler.CreateTask)
+	app.Post("/tasks", middleware.ValidateRequest[requests.CreateTaskRequest](), handler.CreateTask)
 
 	req := httptest.NewRequest("POST", "/tasks", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -107,14 +108,14 @@ func TestCreateTask_InvalidJSON(t *testing.T) {
 
 func TestCreateTask_ValidationError(t *testing.T) {
 	app, handler := setupTestApp()
-	app.Post("/tasks", middleware.ValidateRequest[models.CreateTaskRequest](), handler.CreateTask)
+	app.Post("/tasks", middleware.ValidateRequest[requests.CreateTaskRequest](), handler.CreateTask)
 
 	tests := []struct {
 		name string
-		req  models.CreateTaskRequest
+		req  requests.CreateTaskRequest
 	}{
-		{"empty name", models.CreateTaskRequest{Name: "", Status: 0}},
-		{"invalid status", models.CreateTaskRequest{Name: "Test", Status: 2}},
+		{"empty name", requests.CreateTaskRequest{Name: "", Status: 0}},
+		{"invalid status", requests.CreateTaskRequest{Name: "Test", Status: 2}},
 	}
 
 	for _, tt := range tests {
@@ -137,16 +138,16 @@ func TestCreateTask_ValidationError(t *testing.T) {
 func TestGetTaskByID_Success(t *testing.T) {
 	app, handler := setupTestApp()
 	app.Get("/tasks/:id", middleware.ValidatePathID(), handler.GetTaskByID)
-	app.Post("/tasks", middleware.ValidateRequest[models.CreateTaskRequest](), handler.CreateTask)
+	app.Post("/tasks", middleware.ValidateRequest[requests.CreateTaskRequest](), handler.CreateTask)
 
-	taskReq := models.CreateTaskRequest{Name: "Test Task", Status: 0}
+	taskReq := requests.CreateTaskRequest{Name: "Test Task", Status: 0}
 	reqBody, _ := json.Marshal(taskReq)
 	createReq := httptest.NewRequest("POST", "/tasks", bytes.NewBuffer(reqBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	createResp, _ := app.Test(createReq)
 
 	body, _ := io.ReadAll(createResp.Body)
-	var createdTask models.Task
+	var createdTask entities.Task
 	json.Unmarshal(body, &createdTask)
 
 	req := httptest.NewRequest("GET", fmt.Sprintf("/tasks/%d", createdTask.ID), nil)
@@ -160,7 +161,7 @@ func TestGetTaskByID_Success(t *testing.T) {
 	}
 
 	body, _ = io.ReadAll(resp.Body)
-	var task models.Task
+	var task entities.Task
 	if err := json.Unmarshal(body, &task); err != nil {
 		t.Fatal(err)
 	}
@@ -180,8 +181,8 @@ func TestGetTaskByID_NotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.StatusCode != fiber.StatusNotFound {
-		t.Errorf("Expected status %d, got %d", fiber.StatusNotFound, resp.StatusCode)
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", fiber.StatusBadRequest, resp.StatusCode)
 	}
 }
 
@@ -202,20 +203,20 @@ func TestGetTaskByID_InvalidID(t *testing.T) {
 
 func TestUpdateTask_Success(t *testing.T) {
 	app, handler := setupTestApp()
-	app.Post("/tasks", middleware.ValidateRequest[models.CreateTaskRequest](), handler.CreateTask)
-	app.Put("/tasks/:id", middleware.ValidatePathID(), middleware.ValidateRequest[models.UpdateTaskRequest](), handler.UpdateTask)
+	app.Post("/tasks", middleware.ValidateRequest[requests.CreateTaskRequest](), handler.CreateTask)
+	app.Put("/tasks/:id", middleware.ValidatePathID(), middleware.ValidateRequest[requests.UpdateTaskRequest](), handler.UpdateTask)
 
-	taskReq := models.CreateTaskRequest{Name: "Original Task", Status: 0}
+	taskReq := requests.CreateTaskRequest{Name: "Original Task", Status: 0}
 	reqBody, _ := json.Marshal(taskReq)
 	createReq := httptest.NewRequest("POST", "/tasks", bytes.NewBuffer(reqBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	createResp, _ := app.Test(createReq)
 
 	body, _ := io.ReadAll(createResp.Body)
-	var createdTask models.Task
+	var createdTask entities.Task
 	json.Unmarshal(body, &createdTask)
 
-	updateReq := models.UpdateTaskRequest{Name: "Updated Task", Status: 1}
+	updateReq := requests.UpdateTaskRequest{Name: "Updated Task", Status: 1}
 	updateBody, _ := json.Marshal(updateReq)
 	req := httptest.NewRequest("PUT", fmt.Sprintf("/tasks/%d", createdTask.ID), bytes.NewBuffer(updateBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -229,7 +230,7 @@ func TestUpdateTask_Success(t *testing.T) {
 	}
 
 	body, _ = io.ReadAll(resp.Body)
-	var updatedTask models.Task
+	var updatedTask entities.Task
 	if err := json.Unmarshal(body, &updatedTask); err != nil {
 		t.Fatal(err)
 	}
@@ -244,9 +245,9 @@ func TestUpdateTask_Success(t *testing.T) {
 
 func TestUpdateTask_NotFound(t *testing.T) {
 	app, handler := setupTestApp()
-	app.Put("/tasks/:id", middleware.ValidatePathID(), middleware.ValidateRequest[models.UpdateTaskRequest](), handler.UpdateTask)
+	app.Put("/tasks/:id", middleware.ValidatePathID(), middleware.ValidateRequest[requests.UpdateTaskRequest](), handler.UpdateTask)
 
-	updateReq := models.UpdateTaskRequest{Name: "Updated Task", Status: 1}
+	updateReq := requests.UpdateTaskRequest{Name: "Updated Task", Status: 1}
 	updateBody, _ := json.Marshal(updateReq)
 	req := httptest.NewRequest("PUT", "/tasks/999", bytes.NewBuffer(updateBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -255,24 +256,24 @@ func TestUpdateTask_NotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.StatusCode != fiber.StatusNotFound {
-		t.Errorf("Expected status %d, got %d", fiber.StatusNotFound, resp.StatusCode)
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", fiber.StatusBadRequest, resp.StatusCode)
 	}
 }
 
 func TestDeleteTask_Success(t *testing.T) {
 	app, handler := setupTestApp()
-	app.Post("/tasks", middleware.ValidateRequest[models.CreateTaskRequest](), handler.CreateTask)
+	app.Post("/tasks", middleware.ValidateRequest[requests.CreateTaskRequest](), handler.CreateTask)
 	app.Delete("/tasks/:id", middleware.ValidatePathID(), handler.DeleteTask)
 
-	taskReq := models.CreateTaskRequest{Name: "Task to Delete", Status: 0}
+	taskReq := requests.CreateTaskRequest{Name: "Task to Delete", Status: 0}
 	reqBody, _ := json.Marshal(taskReq)
 	createReq := httptest.NewRequest("POST", "/tasks", bytes.NewBuffer(reqBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	createResp, _ := app.Test(createReq)
 
 	body, _ := io.ReadAll(createResp.Body)
-	var createdTask models.Task
+	var createdTask entities.Task
 	json.Unmarshal(body, &createdTask)
 
 	req := httptest.NewRequest("DELETE", fmt.Sprintf("/tasks/%d", createdTask.ID), nil)
@@ -296,7 +297,8 @@ func TestDeleteTask_NotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.StatusCode != fiber.StatusNotFound {
-		t.Errorf("Expected status %d, got %d", fiber.StatusNotFound, resp.StatusCode)
+	// RESTful DELETE should be idempotent - return 204 even for non-existent resources
+	if resp.StatusCode != fiber.StatusNoContent {
+		t.Errorf("Expected status %d, got %d", fiber.StatusNoContent, resp.StatusCode)
 	}
 }

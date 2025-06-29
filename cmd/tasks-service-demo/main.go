@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"strconv"
@@ -11,16 +10,23 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/joho/godotenv"
 
+	apperrors "tasks-service-demo/internal/errors"
+	applog "tasks-service-demo/internal/logger"
 	"tasks-service-demo/internal/routes"
 	"tasks-service-demo/internal/services"
 	"tasks-service-demo/internal/storage"
-	"tasks-service-demo/internal/storage/bigcache"
 	"tasks-service-demo/internal/storage/naive"
 	"tasks-service-demo/internal/storage/shard"
 )
 
 func main() {
+	// Load .env file if it exists
+	if err := godotenv.Load(); err != nil {
+		applog.Get().Info("No .env file found, using system environment variables")
+	}
+
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
@@ -28,12 +34,11 @@ func main() {
 				code = e.Code
 			}
 			return ctx.Status(code).JSON(fiber.Map{
-				"error":   "Internal Server Error",
+				"code":    apperrors.ErrCodeInternalError,
 				"message": err.Error(),
 			})
 		},
 	})
-
 	app.Use(logger.New())
 	app.Use(recover.New())
 	app.Use(cors.New())
@@ -59,19 +64,15 @@ func main() {
 	switch storageType {
 	case "memory":
 		store = naive.NewMemoryStore()
-		log.Printf("MemoryStore initialized (single mutex - not recommended for production)")
-	case "bigcache":
-		store = bigcache.NewBigCacheStore()
-		log.Printf("BigCacheStore initialized (off-heap cache with zero GC overhead)")
+		applog.Get().Info("MemoryStore initialized (single mutex - not recommended for production)")
 	case "shard":
 		store = shard.NewShardStore(shardCount)
-		log.Printf("ShardStore initialized with dedicated workers and %d shards", shardCount)
-
+		applog.Get().Infof("ShardStore initialized with dedicated workers and %d shards", shardCount)
 	default:
 		// Default to gopool for best performance
 		store = shard.NewShardStoreGopool(shardCount)
-		log.Printf("Unknown storage type '%s', defaulting to ShardStoreGopool", storageType)
-		log.Printf("Optimized for M4 Pro 14-core architecture with %d shards", shardCount)
+		applog.Get().Infof("Unknown storage type '%s', defaulting to ShardStoreGopool", storageType)
+		applog.Get().Infof("Optimized for M4 Pro 14-core architecture with %d shards", shardCount)
 	}
 
 	storage.InitStore(store)
@@ -84,15 +85,15 @@ func main() {
 	// Graceful shutdown with proper resource cleanup
 	go func() {
 		<-c
-		log.Println("Gracefully shutting down...")
+		applog.Get().Info("Gracefully shutting down...")
 
 		// Close storage resources before shutting down server
 		if store := storage.GetStore(); store != nil {
 			if closer, ok := store.(interface{ Close() error }); ok {
 				if err := closer.Close(); err != nil {
-					log.Printf("Error closing storage: %v", err)
+					applog.Get().Errorf("Error closing storage: %v", err)
 				} else {
-					log.Println("Storage resources cleaned up")
+					applog.Get().Info("Storage resources cleaned up")
 				}
 			}
 		}
@@ -100,10 +101,10 @@ func main() {
 		_ = app.Shutdown()
 	}()
 
-	log.Println("Starting server on :8080")
+	applog.Get().Info("Starting server on :8080")
 	if err := app.Listen(":8080"); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+		applog.Get().Fatalf("Server failed to start: %v", err)
 	}
 
-	log.Println("Server gracefully stopped")
+	applog.Get().Info("Server gracefully stopped")
 }

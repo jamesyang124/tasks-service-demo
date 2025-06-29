@@ -1,19 +1,19 @@
 package shard
 
 import (
-	"errors"
 	"runtime"
 	"sync/atomic"
-	"tasks-service-demo/internal/models"
+	"tasks-service-demo/internal/entities"
+	apperrors "tasks-service-demo/internal/errors"
 )
 
 // ShardStore distributes tasks across multiple shard units using optimized sharding
 type ShardStore struct {
-	shards    []*ShardUnit
-	numShards int
-	nextID    int64 // atomic counter for lock-free ID generation
-	shardMask int   // bitmask for power-of-2 optimization
-	
+	shards    []*ShardUnit // Array of shard units for distributed storage
+	numShards int          // Total number of shards
+	nextID    int64        // Atomic counter for lock-free ID generation
+	shardMask int          // Bitmask for power-of-2 optimization
+
 	// Performance optimizations - Pre-allocated worker slice
 	workers    []chan workerJob // One dedicated worker channel per shard
 	workerDone []chan struct{}  // Synchronization channels for graceful shutdown
@@ -28,7 +28,7 @@ type workerJob struct {
 
 // shardResult represents the result from processing a shard
 type shardResult struct {
-	tasks []*models.Task
+	tasks []*entities.Task
 	index int
 }
 
@@ -46,7 +46,7 @@ func nextPowerOfTwo(n int) int {
 	if isPowerOfTwo(n) {
 		return n
 	}
-	
+
 	// Find next power of 2
 	power := 1
 	for power < n {
@@ -68,7 +68,7 @@ func NewShardStore(numShards int) *ShardStore {
 			numShards = 64
 		}
 	}
-	
+
 	// Round up to next power of 2 for bitwise optimization
 	numShards = nextPowerOfTwo(numShards)
 	shardMask := numShards - 1 // For bitwise AND operation
@@ -82,12 +82,12 @@ func NewShardStore(numShards int) *ShardStore {
 	// Initialize pre-allocated worker channels (one per shard for optimal locality)
 	workers := make([]chan workerJob, numShards)
 	workerDone := make([]chan struct{}, numShards)
-	
+
 	for i := 0; i < numShards; i++ {
 		workers[i] = make(chan workerJob, 2) // Small buffer for better throughput
 		workerDone[i] = make(chan struct{})
 	}
-	
+
 	store := &ShardStore{
 		shards:     shards,
 		numShards:  numShards,
@@ -96,12 +96,12 @@ func NewShardStore(numShards int) *ShardStore {
 		workers:    workers,
 		workerDone: workerDone,
 	}
-	
+
 	// Start dedicated worker goroutines (one per shard for optimal locality)
 	for i := 0; i < numShards; i++ {
 		go store.dedicatedWorker(i)
 	}
-	
+
 	return store
 }
 
@@ -114,16 +114,16 @@ func (s *ShardStore) getShardByID(id int) int {
 // dedicatedWorker processes jobs for a specific shard (optimal CPU cache locality)
 func (s *ShardStore) dedicatedWorker(workerID int) {
 	workerChan := s.workers[workerID]
-	
+
 	for {
 		select {
 		case job := <-workerChan:
 			// Process job for this dedicated worker's shard using ShardUnit
 			tasks := job.shard.GetAll()
-			
+
 			// Send result
 			job.results <- shardResult{tasks: tasks, index: job.shardIndex}
-			
+
 		case <-s.workerDone[workerID]:
 			// Graceful shutdown signal
 			return
@@ -137,7 +137,11 @@ func (s *ShardStore) generateID() int {
 }
 
 // Create stores a task in the appropriate shard
-func (s *ShardStore) Create(task *models.Task) error {
+func (s *ShardStore) Create(task *entities.Task) *apperrors.AppError {
+	if task == nil {
+		return apperrors.ErrTaskCannotBeNil
+	}
+
 	// Generate global ID
 	task.ID = s.generateID()
 
@@ -154,7 +158,7 @@ func (s *ShardStore) Create(task *models.Task) error {
 }
 
 // GetByID retrieves a task by ID from the appropriate shard
-func (s *ShardStore) GetByID(id int) (*models.Task, error) {
+func (s *ShardStore) GetByID(id int) (*entities.Task, *apperrors.AppError) {
 	shardIndex := s.getShardByID(id)
 
 	// Access shard directly (no global mutex needed)
@@ -163,16 +167,16 @@ func (s *ShardStore) GetByID(id int) (*models.Task, error) {
 	// Use ShardUnit API for better encapsulation
 	task, exists := shard.Get(id)
 	if !exists {
-		return nil, errors.New("task not found")
+		return nil, apperrors.ErrTaskNotFound
 	}
 	return task, nil
 }
 
 // GetAll retrieves all tasks from all shards using dedicated workers
-func (s *ShardStore) GetAll() []*models.Task {
+func (s *ShardStore) GetAll() []*entities.Task {
 	// Create result channel for this operation
 	results := make(chan shardResult, s.numShards)
-	
+
 	// Submit jobs directly to dedicated workers (optimal shard-worker affinity)
 	for i, shard := range s.shards {
 		s.workers[i] <- workerJob{
@@ -183,7 +187,7 @@ func (s *ShardStore) GetAll() []*models.Task {
 	}
 
 	// Collect results from all shards
-	var allTasks []*models.Task
+	var allTasks []*entities.Task
 	for i := 0; i < s.numShards; i++ {
 		result := <-results
 		allTasks = append(allTasks, result.tasks...)
@@ -193,7 +197,7 @@ func (s *ShardStore) GetAll() []*models.Task {
 }
 
 // Update modifies a task in the appropriate shard
-func (s *ShardStore) Update(id int, updatedTask *models.Task) error {
+func (s *ShardStore) Update(id int, updatedTask *entities.Task) *apperrors.AppError {
 	shardIndex := s.getShardByID(id)
 
 	// Access shard directly
@@ -202,13 +206,13 @@ func (s *ShardStore) Update(id int, updatedTask *models.Task) error {
 	// Use ShardUnit API for better encapsulation
 	updatedTask.ID = id
 	if !shard.Update(id, updatedTask) {
-		return errors.New("task not found")
+		return apperrors.ErrTaskNotFound
 	}
 	return nil
 }
 
 // Delete removes a task from the appropriate shard
-func (s *ShardStore) Delete(id int) error {
+func (s *ShardStore) Delete(id int) *apperrors.AppError {
 	shardIndex := s.getShardByID(id)
 
 	// Access shard directly
@@ -216,23 +220,22 @@ func (s *ShardStore) Delete(id int) error {
 
 	// Use ShardUnit API for better encapsulation
 	if !shard.Delete(id) {
-		return errors.New("task not found")
+		return apperrors.ErrTaskNotFound
 	}
 	return nil
 }
 
-
 // Close gracefully shuts down all worker goroutines
-func (s *ShardStore) Close() error {
+func (s *ShardStore) Close() *apperrors.AppError {
 	// Signal all workers to stop
 	for i := 0; i < s.numShards; i++ {
 		close(s.workerDone[i])
 	}
-	
+
 	// Close worker channels to prevent new jobs
 	for i := 0; i < s.numShards; i++ {
 		close(s.workers[i])
 	}
-	
+
 	return nil
 }

@@ -1,25 +1,28 @@
 package naive
 
 import (
-	"errors"
 	"sync"
-	"tasks-service-demo/internal/models"
+	"tasks-service-demo/internal/entities"
+
+	apperrors "tasks-service-demo/internal/errors"
 )
 
+// MemoryStore provides an in-memory storage implementation using a map and mutex
 type MemoryStore struct {
-	tasks  map[int]*models.Task
-	mu     sync.RWMutex
-	nextID int
+	tasks  map[int]*entities.Task // Map to store tasks by ID
+	mu     sync.RWMutex           // Read-write mutex for thread safety
+	nextID int                    // Auto-incrementing ID counter
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		tasks:  make(map[int]*models.Task),
+		tasks:  make(map[int]*entities.Task),
 		nextID: 1,
 	}
 }
 
-func (s *MemoryStore) Create(task *models.Task) error {
+// Create stores a new task with an auto-generated ID
+func (s *MemoryStore) Create(task *entities.Task) *apperrors.AppError {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -29,34 +32,37 @@ func (s *MemoryStore) Create(task *models.Task) error {
 	return nil
 }
 
-func (s *MemoryStore) GetByID(id int) (*models.Task, error) {
+// GetByID retrieves a task by its ID, returns error if not found
+func (s *MemoryStore) GetByID(id int) (*entities.Task, *apperrors.AppError) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	task, exists := s.tasks[id]
 	if !exists {
-		return nil, errors.New("task not found")
+		return nil, apperrors.ErrTaskNotFound
 	}
 	return task, nil
 }
 
-func (s *MemoryStore) GetAll() []*models.Task {
+// GetAll returns all tasks in the store
+func (s *MemoryStore) GetAll() []*entities.Task {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	tasks := make([]*models.Task, 0, len(s.tasks))
+	tasks := make([]*entities.Task, 0, len(s.tasks))
 	for _, task := range s.tasks {
 		tasks = append(tasks, task)
 	}
 	return tasks
 }
 
-func (s *MemoryStore) Update(id int, updatedTask *models.Task) error {
+// Update modifies an existing task by ID, returns error if not found
+func (s *MemoryStore) Update(id int, updatedTask *entities.Task) *apperrors.AppError {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, exists := s.tasks[id]; !exists {
-		return errors.New("task not found")
+		return apperrors.ErrTaskNotFound
 	}
 
 	updatedTask.ID = id
@@ -64,12 +70,13 @@ func (s *MemoryStore) Update(id int, updatedTask *models.Task) error {
 	return nil
 }
 
-func (s *MemoryStore) Delete(id int) error {
+// Delete removes a task by ID, returns error if not found
+func (s *MemoryStore) Delete(id int) *apperrors.AppError {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, exists := s.tasks[id]; !exists {
-		return errors.New("task not found")
+		return apperrors.ErrTaskNotFound
 	}
 
 	delete(s.tasks, id)

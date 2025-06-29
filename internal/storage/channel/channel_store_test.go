@@ -1,15 +1,15 @@
 package channel
 
 import (
+	"tasks-service-demo/internal/entities"
 	"testing"
-	"tasks-service-demo/internal/models"
 )
 
 func TestChannelStore_Create(t *testing.T) {
 	store := NewChannelStore(4)
 	defer store.Shutdown()
 
-	task := &models.Task{
+	task := &entities.Task{
 		Name:   "Test Task",
 		Status: 0,
 	}
@@ -29,7 +29,7 @@ func TestChannelStore_GetByID(t *testing.T) {
 	defer store.Shutdown()
 
 	// Create a task first
-	task := &models.Task{
+	task := &entities.Task{
 		Name:   "Test Task",
 		Status: 0,
 	}
@@ -68,7 +68,7 @@ func TestChannelStore_Update(t *testing.T) {
 	defer store.Shutdown()
 
 	// Create a task first
-	task := &models.Task{
+	task := &entities.Task{
 		Name:   "Original Task",
 		Status: 0,
 	}
@@ -78,7 +78,7 @@ func TestChannelStore_Update(t *testing.T) {
 	}
 
 	// Update the task
-	updatedTask := &models.Task{
+	updatedTask := &entities.Task{
 		Name:   "Updated Task",
 		Status: 1,
 	}
@@ -106,7 +106,7 @@ func TestChannelStore_Update_NotFound(t *testing.T) {
 	store := NewChannelStore(4)
 	defer store.Shutdown()
 
-	updatedTask := &models.Task{
+	updatedTask := &entities.Task{
 		Name:   "Updated Task",
 		Status: 1,
 	}
@@ -121,7 +121,7 @@ func TestChannelStore_Delete(t *testing.T) {
 	defer store.Shutdown()
 
 	// Create a task first
-	task := &models.Task{
+	task := &entities.Task{
 		Name:   "Test Task",
 		Status: 0,
 	}
@@ -158,9 +158,9 @@ func TestChannelStore_GetAll(t *testing.T) {
 	defer store.Shutdown()
 
 	// Create multiple tasks
-	task1 := &models.Task{Name: "Task 1", Status: 0}
-	task2 := &models.Task{Name: "Task 2", Status: 1}
-	task3 := &models.Task{Name: "Task 3", Status: 0}
+	task1 := &entities.Task{Name: "Task 1", Status: 0}
+	task2 := &entities.Task{Name: "Task 2", Status: 1}
+	task3 := &entities.Task{Name: "Task 3", Status: 0}
 
 	store.Create(task1)
 	store.Create(task2)
@@ -195,7 +195,7 @@ func TestChannelStore_ConcurrentOperations(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(workerID int) {
 			for j := 0; j < tasksPerGoroutine; j++ {
-				task := &models.Task{
+				task := &entities.Task{
 					Name:   "Concurrent Task",
 					Status: workerID % 2,
 				}
@@ -226,11 +226,11 @@ func TestChannelStore_IDGeneration(t *testing.T) {
 	defer store.Shutdown()
 
 	// Create multiple tasks and verify unique IDs
-	tasks := make([]*models.Task, 10)
+	tasks := make([]*entities.Task, 10)
 	ids := make(map[int]bool)
 
 	for i := 0; i < 10; i++ {
-		task := &models.Task{
+		task := &entities.Task{
 			Name:   "ID Test Task",
 			Status: 0,
 		}

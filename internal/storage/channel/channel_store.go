@@ -1,9 +1,10 @@
 package channel
 
 import (
-	"errors"
+	"fmt"
 	"sync/atomic"
-	"tasks-service-demo/internal/models"
+	"tasks-service-demo/internal/entities"
+	apperrors "tasks-service-demo/internal/errors"
 )
 
 // Operation types
@@ -20,14 +21,14 @@ const (
 type Operation struct {
 	Type     string
 	TaskID   int
-	Task     *models.Task
+	Task     *entities.Task
 	Response chan Result
 }
 
 // Result represents the response from an operation
 type Result struct {
-	Task  *models.Task
-	Tasks []*models.Task
+	Task  *entities.Task
+	Tasks []*entities.Task
 	Error error
 }
 
@@ -55,7 +56,7 @@ func NewChannelStore(numWorkers int) *ChannelStore {
 // worker processes operations from the channel (simple single-worker)
 func (cs *ChannelStore) worker() {
 	// Single worker with local storage - no locks needed!
-	localStorage := make(map[int]*models.Task)
+	localStorage := make(map[int]*entities.Task)
 
 	for {
 		select {
@@ -71,7 +72,7 @@ func (cs *ChannelStore) worker() {
 					taskCopy := *task
 					op.Response <- Result{Task: &taskCopy, Error: nil}
 				} else {
-					op.Response <- Result{Error: errors.New("task not found")}
+					op.Response <- Result{Error: apperrors.ErrTaskNotFound}
 				}
 
 			case OpUpdate:
@@ -80,7 +81,7 @@ func (cs *ChannelStore) worker() {
 					localStorage[op.TaskID] = op.Task
 					op.Response <- Result{Task: op.Task, Error: nil}
 				} else {
-					op.Response <- Result{Error: errors.New("task not found")}
+					op.Response <- Result{Error: apperrors.ErrTaskNotFound}
 				}
 
 			case OpDelete:
@@ -88,12 +89,12 @@ func (cs *ChannelStore) worker() {
 					delete(localStorage, op.TaskID)
 					op.Response <- Result{Error: nil}
 				} else {
-					op.Response <- Result{Error: errors.New("task not found")}
+					op.Response <- Result{Error: apperrors.ErrTaskNotFound}
 				}
 
 			case OpGetAll:
 				// Collect all tasks from this worker's storage
-				tasks := make([]*models.Task, 0, len(localStorage))
+				tasks := make([]*entities.Task, 0, len(localStorage))
 				for _, task := range localStorage {
 					taskCopy := *task
 					tasks = append(tasks, &taskCopy)
@@ -111,7 +112,7 @@ func (cs *ChannelStore) worker() {
 }
 
 // Create adds a new task to the store
-func (cs *ChannelStore) Create(task *models.Task) error {
+func (cs *ChannelStore) Create(task *entities.Task) *apperrors.AppError {
 	// Generate unique ID atomically
 	id := int(atomic.AddInt64(&cs.nextID, 1))
 	task.ID = id
@@ -126,11 +127,14 @@ func (cs *ChannelStore) Create(task *models.Task) error {
 
 	cs.operations <- op
 	result := <-response
-	return result.Error
+	if result.Error != nil {
+		return apperrors.ErrStorageError.WithCause(fmt.Errorf("Create failed from channel result: %v", result.Error))
+	}
+	return nil
 }
 
 // GetByID retrieves a task by its ID
-func (cs *ChannelStore) GetByID(id int) (*models.Task, error) {
+func (cs *ChannelStore) GetByID(id int) (*entities.Task, *apperrors.AppError) {
 	response := make(chan Result, 1)
 
 	op := Operation{
@@ -141,11 +145,15 @@ func (cs *ChannelStore) GetByID(id int) (*models.Task, error) {
 
 	cs.operations <- op
 	result := <-response
-	return result.Task, result.Error
+	if result.Error != nil {
+		return nil, apperrors.ErrStorageError.WithCause(fmt.Errorf("GetByID failed from channel result: %v", result.Error))
+	}
+
+	return result.Task, nil
 }
 
 // Update modifies an existing task
-func (cs *ChannelStore) Update(id int, updatedTask *models.Task) error {
+func (cs *ChannelStore) Update(id int, updatedTask *entities.Task) *apperrors.AppError {
 	response := make(chan Result, 1)
 
 	op := Operation{
@@ -157,11 +165,14 @@ func (cs *ChannelStore) Update(id int, updatedTask *models.Task) error {
 
 	cs.operations <- op
 	result := <-response
-	return result.Error
+	if result.Error != nil {
+		return apperrors.ErrStorageError.WithCause(fmt.Errorf("Update failed from channel result: %v", result.Error))
+	}
+	return nil
 }
 
 // Delete removes a task from the store
-func (cs *ChannelStore) Delete(id int) error {
+func (cs *ChannelStore) Delete(id int) *apperrors.AppError {
 	response := make(chan Result, 1)
 
 	op := Operation{
@@ -172,25 +183,28 @@ func (cs *ChannelStore) Delete(id int) error {
 
 	cs.operations <- op
 	result := <-response
-	return result.Error
+	if result.Error != nil {
+		return apperrors.ErrStorageError.WithCause(fmt.Errorf("Delete failed from channel result: %v", result.Error))
+	}
+	return nil
 }
 
 // GetAll retrieves all tasks
-func (cs *ChannelStore) GetAll() []*models.Task {
+func (cs *ChannelStore) GetAll() []*entities.Task {
 	response := make(chan Result, 1)
-	
+
 	op := Operation{
 		Type:     OpGetAll,
 		Response: response,
 	}
-	
+
 	cs.operations <- op
 	result := <-response
-	
+
 	if result.Error != nil {
-		return []*models.Task{}
+		return []*entities.Task{}
 	}
-	
+
 	return result.Tasks
 }
 

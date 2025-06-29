@@ -7,17 +7,17 @@ package shard
 func (s *ShardStore) GetShardStats() map[string]interface{} {
 	stats := make(map[string]interface{})
 	stats["numShards"] = s.numShards
-	
+
 	shardCounts := make([]int, s.numShards)
 	totalTasks := 0
-	
+
 	// Collect stats from all shards using ShardUnit API
 	for i, shard := range s.shards {
 		count := shard.Count()
 		shardCounts[i] = count
 		totalTasks += count
 	}
-	
+
 	stats["totalTasks"] = totalTasks
 	stats["tasksPerShard"] = shardCounts
 
