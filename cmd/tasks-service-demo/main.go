@@ -4,7 +4,9 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -22,6 +24,13 @@ import (
 )
 
 func main() {
+	// flush zap on exit
+	defer func() {
+		if err := applog.Get().Sync(); err != nil {
+			applog.Get().Warnf("Zap sync/flush error: %v", err)
+		}
+	}()
+
 	// Load .env file if it exists
 	if err := godotenv.Load(); err != nil {
 		applog.Get().Info("No .env file found, using system environment variables")
@@ -79,13 +88,25 @@ func main() {
 	taskService := services.NewTaskService()
 	routes.SetupRoutes(app, taskService)
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
 
 	// Graceful shutdown with proper resource cleanup
 	go func() {
-		<-c
-		applog.Get().Info("Gracefully shutting down...")
+		defer wg.Done()
+
+		<-quit
+		applog.Get().Info("Received shutdown signal...")
+
+		// Gracefully shutdown Fiber after 5 seconds
+		if err := app.ShutdownWithTimeout(5 * time.Second); err != nil {
+			applog.Get().Errorf("Fiber shutdown error: %v", err)
+		} else {
+			applog.Get().Info("Fiber server shutdown complete")
+		}
 
 		// Close storage resources before shutting down server
 		if store := storage.GetStore(); store != nil {
@@ -98,7 +119,6 @@ func main() {
 			}
 		}
 
-		_ = app.Shutdown()
 	}()
 
 	applog.Get().Info("Starting server on :8080")
@@ -106,5 +126,7 @@ func main() {
 		applog.Get().Fatalf("Server failed to start: %v", err)
 	}
 
+	// Wait for cleanup goroutine to complete
+	wg.Wait()
 	applog.Get().Info("Server gracefully stopped")
 }

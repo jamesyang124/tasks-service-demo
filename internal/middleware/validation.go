@@ -19,7 +19,7 @@ func ValidateRequest[T requests.Validatable]() fiber.Handler {
 
 		if err := c.BodyParser(&req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(&errors.ErrorResponse{
-				Message: "Invalid JSON",
+				Message: err.Error(),
 				Code:    errors.ErrCodeInvalidJSON,
 			})
 		}

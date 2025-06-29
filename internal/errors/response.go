@@ -18,7 +18,7 @@ func ToResponse(appErr *AppError) ErrorResponse {
 
 var (
 	// ErrInternalErrorResponse is a pre-defined error response for internal server errors.
-	ErrInternalErrorResponse = &AppError{
+	ErrInternalErrorResponse = &ErrorResponse{
 		Code:    ErrCodeInternalError,
 		Message: ErrInternalError.Message,
 	}
