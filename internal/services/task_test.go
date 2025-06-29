@@ -3,12 +3,13 @@ package services
 import (
 	"tasks-service-demo/internal/models"
 	"tasks-service-demo/internal/storage"
+	"tasks-service-demo/internal/storage/naive"
 	"testing"
 )
 
 func setupTestService() *TaskService {
 	storage.ResetStore()
-	storage.InitStore(storage.NewMemoryStore())
+	storage.InitStore(naive.NewMemoryStore())
 	return NewTaskService()
 }
 

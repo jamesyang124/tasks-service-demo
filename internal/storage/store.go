@@ -5,6 +5,7 @@ import (
 	"tasks-service-demo/internal/models"
 )
 
+// Store defines the interface for all storage implementations
 type Store interface {
 	Create(task *models.Task) error
 	GetByID(id int) (*models.Task, error)
@@ -13,6 +14,7 @@ type Store interface {
 	Delete(id int) error
 }
 
+// Singleton pattern for application-wide store instance
 var (
 	instance Store
 	once     sync.Once
@@ -27,15 +29,10 @@ func InitStore(store Store) {
 
 // GetStore returns the singleton store instance
 func GetStore() Store {
-	if instance == nil {
-		// Default to memory store if not initialized
-		InitStore(NewMemoryStore())
-	}
 	return instance
 }
 
-// ResetStore resets the singleton for testing purposes
+// ResetStore reset store instance
 func ResetStore() {
 	instance = nil
-	once = sync.Once{}
 }

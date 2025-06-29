@@ -1,3 +1,3 @@
 FROM grafana/k6:latest
-COPY test.js .
-CMD ["run", "test.js"]
+COPY *.js /scripts/
+CMD ["run", "/scripts/test.js"]

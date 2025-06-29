@@ -1,30 +1,30 @@
 package benchmarks
 
 import (
-	"testing"
 	"tasks-service-demo/internal/models"
-	"tasks-service-demo/internal/storage"
+	"tasks-service-demo/internal/storage/bigcache"
+	"testing"
 )
 
 // BigCacheStore Benchmarks - Off-heap cache with zero GC overhead
 
 func BenchmarkReadZipf_BigCacheStore(b *testing.B) {
-	store := storage.NewBigCacheStore()
+	store := bigcache.NewBigCacheStore()
 	defer store.Close()
 	BenchmarkReadZipf(b, store, "BigCacheStore")
 }
 
 func BenchmarkWriteZipf_BigCacheStore(b *testing.B) {
-	store := storage.NewBigCacheStore()
+	store := bigcache.NewBigCacheStore()
 	defer store.Close()
 	BenchmarkWriteZipf(b, store, "BigCacheStore")
 }
 
 func BenchmarkDistributedRead_BigCacheStore(b *testing.B) {
-	store := storage.NewBigCacheStore()
+	store := bigcache.NewBigCacheStore()
 	defer store.Close()
 	PopulateStore(b, store, "BigCacheStore Distributed Read")
-	
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
@@ -38,10 +38,10 @@ func BenchmarkDistributedRead_BigCacheStore(b *testing.B) {
 }
 
 func BenchmarkDistributedWrite_BigCacheStore(b *testing.B) {
-	store := storage.NewBigCacheStore()
+	store := bigcache.NewBigCacheStore()
 	defer store.Close()
 	PopulateStore(b, store, "BigCacheStore Distributed Write")
-	
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
@@ -58,16 +58,16 @@ func BenchmarkDistributedWrite_BigCacheStore(b *testing.B) {
 }
 
 func BenchmarkDistributedMixed_BigCacheStore(b *testing.B) {
-	store := storage.NewBigCacheStore()
+	store := bigcache.NewBigCacheStore()
 	defer store.Close()
 	PopulateStore(b, store, "BigCacheStore Distributed Mixed")
-	
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
 			targetID := (i % DatasetSize) + 1
-			
+
 			// 70% reads, 30% writes
 			if i%10 < 7 {
 				store.GetByID(targetID)

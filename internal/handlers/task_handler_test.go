@@ -8,17 +8,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
 	"tasks-service-demo/internal/middleware"
 	"tasks-service-demo/internal/models"
 	"tasks-service-demo/internal/services"
 	"tasks-service-demo/internal/storage"
+	"tasks-service-demo/internal/storage/naive"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 func setupTestApp() (*fiber.App, *TaskHandler) {
 	app := fiber.New()
 	storage.ResetStore()
-	storage.InitStore(storage.NewMemoryStore())
+	storage.InitStore(naive.NewMemoryStore())
 	service := services.NewTaskService()
 	handler := NewTaskHandler(service)
 	return app, handler

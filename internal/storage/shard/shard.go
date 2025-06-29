@@ -1,4 +1,4 @@
-package storage
+package shard
 
 import (
 	"errors"
@@ -7,9 +7,9 @@ import (
 	"tasks-service-demo/internal/models"
 )
 
-// ShardStore distributes tasks across multiple memory stores using optimized sharding
+// ShardStore distributes tasks across multiple shard units using optimized sharding
 type ShardStore struct {
-	shards    []*MemoryStore
+	shards    []*ShardUnit
 	numShards int
 	nextID    int64 // atomic counter for lock-free ID generation
 	shardMask int   // bitmask for power-of-2 optimization
@@ -22,7 +22,7 @@ type ShardStore struct {
 // workerJob represents a shard processing job for worker pool
 type workerJob struct {
 	shardIndex int
-	shard      *MemoryStore
+	shard      *ShardUnit
 	results    chan<- shardResult
 }
 
@@ -74,11 +74,9 @@ func NewShardStore(numShards int) *ShardStore {
 	shardMask := numShards - 1 // For bitwise AND operation
 
 	// Pre-allocate shards with expected capacity for better memory layout
-	shards := make([]*MemoryStore, numShards)
+	shards := make([]*ShardUnit, numShards)
 	for i := 0; i < numShards; i++ {
-		shards[i] = NewMemoryStore()
-		// Pre-allocate map capacity to reduce rehashing
-		shards[i].tasks = make(map[int]*models.Task, 64)
+		shards[i] = NewShardUnit(64) // Pre-allocate map capacity to reduce rehashing
 	}
 
 	// Initialize pre-allocated worker channels (one per shard for optimal locality)
@@ -120,13 +118,8 @@ func (s *ShardStore) dedicatedWorker(workerID int) {
 	for {
 		select {
 		case job := <-workerChan:
-			// Process job for this dedicated worker's shard
-			job.shard.mu.RLock()
-			tasks := make([]*models.Task, 0, len(job.shard.tasks))
-			for _, task := range job.shard.tasks {
-				tasks = append(tasks, task)
-			}
-			job.shard.mu.RUnlock()
+			// Process job for this dedicated worker's shard using ShardUnit
+			tasks := job.shard.GetAll()
 			
 			// Send result
 			job.results <- shardResult{tasks: tasks, index: job.shardIndex}
@@ -154,10 +147,8 @@ func (s *ShardStore) Create(task *models.Task) error {
 	// Access shard directly (no global mutex needed - array is immutable)
 	shard := s.shards[shardIndex]
 
-	// Store directly in the shard with our global ID
-	shard.mu.Lock()
-	shard.tasks[task.ID] = task
-	shard.mu.Unlock()
+	// Store in the shard using ShardUnit API
+	shard.Set(task.ID, task)
 
 	return nil
 }
@@ -169,11 +160,8 @@ func (s *ShardStore) GetByID(id int) (*models.Task, error) {
 	// Access shard directly (no global mutex needed)
 	shard := s.shards[shardIndex]
 
-	// Access shard data directly for better performance
-	shard.mu.RLock()
-	task, exists := shard.tasks[id]
-	shard.mu.RUnlock()
-
+	// Use ShardUnit API for better encapsulation
+	task, exists := shard.Get(id)
 	if !exists {
 		return nil, errors.New("task not found")
 	}
@@ -211,16 +199,11 @@ func (s *ShardStore) Update(id int, updatedTask *models.Task) error {
 	// Access shard directly
 	shard := s.shards[shardIndex]
 
-	// Update directly in shard for better performance
-	shard.mu.Lock()
-	defer shard.mu.Unlock()
-
-	if _, exists := shard.tasks[id]; !exists {
+	// Use ShardUnit API for better encapsulation
+	updatedTask.ID = id
+	if !shard.Update(id, updatedTask) {
 		return errors.New("task not found")
 	}
-
-	updatedTask.ID = id
-	shard.tasks[id] = updatedTask
 	return nil
 }
 
@@ -231,15 +214,10 @@ func (s *ShardStore) Delete(id int) error {
 	// Access shard directly
 	shard := s.shards[shardIndex]
 
-	// Delete directly from shard for better performance
-	shard.mu.Lock()
-	defer shard.mu.Unlock()
-
-	if _, exists := shard.tasks[id]; !exists {
+	// Use ShardUnit API for better encapsulation
+	if !shard.Delete(id) {
 		return errors.New("task not found")
 	}
-
-	delete(shard.tasks, id)
 	return nil
 }
 

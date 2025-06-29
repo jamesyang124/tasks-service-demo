@@ -1,4 +1,4 @@
-package storage
+package channel
 
 import (
 	"errors"

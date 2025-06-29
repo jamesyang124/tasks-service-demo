@@ -1,4 +1,4 @@
-package storage
+package shard
 
 // Utility functions for ShardStore - used for monitoring, debugging, and benchmarking
 // These functions are NOT needed for production operation
@@ -11,12 +11,9 @@ func (s *ShardStore) GetShardStats() map[string]interface{} {
 	shardCounts := make([]int, s.numShards)
 	totalTasks := 0
 	
-	// Collect stats from all shards
+	// Collect stats from all shards using ShardUnit API
 	for i, shard := range s.shards {
-		shard.mu.RLock()
-		count := len(shard.tasks)
-		shard.mu.RUnlock()
-		
+		count := shard.Count()
 		shardCounts[i] = count
 		totalTasks += count
 	}
@@ -28,7 +25,7 @@ func (s *ShardStore) GetShardStats() map[string]interface{} {
 }
 
 // GetShard returns a specific shard (useful for testing/debugging)
-func (s *ShardStore) GetShard(index int) *MemoryStore {
+func (s *ShardStore) GetShard(index int) *ShardUnit {
 	if index < 0 || index >= s.numShards {
 		return nil
 	}

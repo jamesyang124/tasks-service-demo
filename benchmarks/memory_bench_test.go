@@ -1,27 +1,27 @@
 package benchmarks
 
 import (
-	"testing"
 	"tasks-service-demo/internal/models"
-	"tasks-service-demo/internal/storage"
+	"tasks-service-demo/internal/storage/naive"
+	"testing"
 )
 
 // MemoryStore Benchmarks - Single mutex in-memory storage
 
 func BenchmarkReadZipf_MemoryStore(b *testing.B) {
-	store := storage.NewMemoryStore()
+	store := naive.NewMemoryStore()
 	BenchmarkReadZipf(b, store, "MemoryStore")
 }
 
 func BenchmarkWriteZipf_MemoryStore(b *testing.B) {
-	store := storage.NewMemoryStore()
+	store := naive.NewMemoryStore()
 	BenchmarkWriteZipf(b, store, "MemoryStore")
 }
 
 func BenchmarkDistributedRead_MemoryStore(b *testing.B) {
-	store := storage.NewMemoryStore()
+	store := naive.NewMemoryStore()
 	PopulateStore(b, store, "MemoryStore Distributed Read")
-	
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
@@ -35,9 +35,9 @@ func BenchmarkDistributedRead_MemoryStore(b *testing.B) {
 }
 
 func BenchmarkDistributedWrite_MemoryStore(b *testing.B) {
-	store := storage.NewMemoryStore()
+	store := naive.NewMemoryStore()
 	PopulateStore(b, store, "MemoryStore Distributed Write")
-	
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
@@ -54,15 +54,15 @@ func BenchmarkDistributedWrite_MemoryStore(b *testing.B) {
 }
 
 func BenchmarkDistributedMixed_MemoryStore(b *testing.B) {
-	store := storage.NewMemoryStore()
+	store := naive.NewMemoryStore()
 	PopulateStore(b, store, "MemoryStore Distributed Mixed")
-	
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
 			targetID := (i % DatasetSize) + 1
-			
+
 			// 70% reads, 30% writes
 			if i%10 < 7 {
 				store.GetByID(targetID)
