@@ -21,6 +21,7 @@ import (
 	"tasks-service-demo/internal/storage"
 	"tasks-service-demo/internal/storage/naive"
 	"tasks-service-demo/internal/storage/shard"
+	"tasks-service-demo/internal/storage/xsync"
 )
 
 func main() {
@@ -55,10 +56,10 @@ func main() {
 	// Initialize storage with configuration options
 	var store storage.Store
 
-	// Check environment variable for storage type (default: gopool)
+	// Check environment variable for storage type (default: xsync)
 	storageType := os.Getenv("STORAGE_TYPE")
 	if storageType == "" {
-		storageType = "gopool" // Default to best performance
+		storageType = "xsync" // Default to lock-free best performance
 	}
 
 	// Configure shard count (default: 32 for M4 Pro optimization)
@@ -71,17 +72,23 @@ func main() {
 
 	// Initialize based on configuration
 	switch storageType {
-	case "memory":
-		store = naive.NewMemoryStore()
-		applog.Get().Info("MemoryStore initialized (single mutex - not recommended for production)")
+	case "xsync":
+		store = xsync.NewXSyncStore()
+		applog.Get().Info("XSyncStore initialized (lock-free concurrent map - best performance)")
+	case "gopool":
+		store = shard.NewShardStoreGopool(shardCount)
+		applog.Get().Infof("ShardStoreGopool initialized with %d shards", shardCount)
 	case "shard":
 		store = shard.NewShardStore(shardCount)
 		applog.Get().Infof("ShardStore initialized with dedicated workers and %d shards", shardCount)
+	case "memory":
+		store = naive.NewMemoryStore()
+		applog.Get().Info("MemoryStore initialized (single mutex - not recommended for production)")
 	default:
-		// Default to gopool for best performance
-		store = shard.NewShardStoreGopool(shardCount)
-		applog.Get().Infof("Unknown storage type '%s', defaulting to ShardStoreGopool", storageType)
-		applog.Get().Infof("Optimized for M4 Pro 14-core architecture with %d shards", shardCount)
+		// Default to xsync for best performance
+		store = xsync.NewXSyncStore()
+		applog.Get().Infof("Unknown storage type '%s', defaulting to XSyncStore", storageType)
+		applog.Get().Info("XSyncStore initialized (lock-free concurrent map - best performance)")
 	}
 
 	storage.InitStore(store)

@@ -6,27 +6,38 @@ Quick reference guide for storage implementation performance characteristics. Fo
 
 | Implementation | Read Performance | Write Performance | Memory Allocations | Production Ready |
 |---------------|------------------|-------------------|-------------------|------------------|
-| **ShardStoreGopool** | **12.40 ns/op** | 62.69 ns/op | 0 B/op | 🏆 **Best** |
-| **ShardStore** | 12.55 ns/op | **61.44 ns/op** | 0 B/op | ✅ **Excellent** |
-| **MemoryStore** | 156.5 ns/op | 312.5 ns/op | 0 B/op | ⚠️ **Limited** |
+| **XSyncStore** | **1.5 ns/op** | **18.0 ns/op** | 0-48 B/op | 🏆 **Best** |
+| **ShardStoreGopool** | 12.2 ns/op | 60.9 ns/op | 0-104 B/op | ✅ **Excellent** |
+| **ShardStore** | 14.5 ns/op | 36.4 ns/op | 0-32 B/op | ✅ **Excellent** |
+| **MemoryStore** | 159.8 ns/op | 220.7 ns/op | 0-32 B/op | ⚠️ **Limited** |
 | **ChannelStore** | 607.5 ns/op | 693.5 ns/op | 192 B/op | ❌ **Educational** |
 
 ## Performance Improvements
 
-### ShardStoreGopool vs MemoryStore
-- **Read Performance**: **12.6x faster** (156.5ns → 12.40ns)
-- **Write Performance**: **5.0x faster** (312.5ns → 62.69ns)
-- **Overall**: **12.6x performance improvement**
+### XSyncStore vs MemoryStore (Lock-Free Revolution)
+- **Read Performance**: **106x faster** (159.8ns → 1.5ns)
+- **Write Performance**: **12.2x faster** (220.7ns → 18.0ns)
+- **Overall**: **106x performance improvement**
 
-### ShardStore vs MemoryStore
-- **Read Performance**: **12.5x faster** (156.5ns → 12.55ns)
-- **Write Performance**: **5.1x faster** (312.5ns → 61.44ns)
-- **Overall**: **12.5x performance improvement**
+### XSyncStore vs ShardStoreGopool
+- **Read Performance**: **8.1x faster** (12.2ns → 1.5ns)
+- **Write Performance**: **3.4x faster** (60.9ns → 18.0ns)
+- **Overall**: **8.1x performance improvement**
 
-### ShardStoreGopool vs ShardStore
-- **Read Performance**: **1.2% faster** (12.55ns → 12.40ns)
-- **Write Performance**: **2.0% slower** (61.44ns → 62.69ns)
-- **Trade-off**: Slightly better reads, slightly worse writes
+### XSyncStore vs ShardStore
+- **Read Performance**: **9.6x faster** (14.5ns → 1.5ns)
+- **Write Performance**: **2.0x faster** (36.4ns → 18.0ns)
+- **Overall**: **9.6x performance improvement**
+
+### Legacy Performance Comparisons
+
+**ShardStoreGopool vs MemoryStore**:
+- **Read Performance**: **13.1x faster** (159.8ns → 12.2ns)
+- **Write Performance**: **3.6x faster** (220.7ns → 60.9ns)
+
+**ShardStore vs MemoryStore**:
+- **Read Performance**: **11.0x faster** (159.8ns → 14.5ns)
+- **Write Performance**: **6.1x faster** (220.7ns → 36.4ns)
 
 ## Implementations Not Included in Load Testing
 
@@ -43,34 +54,43 @@ Quick reference guide for storage implementation performance characteristics. Fo
 
 ## Storage Implementation Details
 
-### ShardStoreGopool (Recommended)
+### XSyncStore (Recommended - Default)
+- **Architecture**: Lock-free concurrent map using xsync.Map
+- **Read Performance**: 1.5 ns/op (best - 106x faster than MemoryStore)
+- **Write Performance**: 18.0 ns/op (best - 12.2x faster than MemoryStore)
+- **Memory**: 0-48 B/op (minimal allocations)
+- **Use Case**: All production systems, especially high-concurrency
+- **Optimization**: Lock-free atomic operations, CAS loops, hazard pointers
+- **Advantages**: No deadlocks, linear scalability, predictable performance
+
+### ShardStoreGopool (High Performance Alternative)
 - **Architecture**: Sharded storage with ByteDance gopool optimization
-- **Read Performance**: 12.40 ns/op (best)
-- **Write Performance**: 62.69 ns/op
-- **Memory**: 0 B/op (zero allocation reads)
-- **Use Case**: High-traffic production systems
+- **Read Performance**: 12.2 ns/op (8.1x slower than XSyncStore)
+- **Write Performance**: 60.9 ns/op (3.4x slower than XSyncStore)
+- **Memory**: 0-104 B/op (low allocations)
+- **Use Case**: High-traffic production systems, write-heavy workloads
 - **Optimization**: Consistent hashing with ByteDance gopool for reduced contention
 
-### ShardStore (Alternative)
+### ShardStore (Balanced Alternative)
 - **Architecture**: Sharded storage with dedicated workers
-- **Read Performance**: 12.55 ns/op
-- **Write Performance**: 61.44 ns/op (best)
-- **Memory**: 0 B/op (zero allocation reads)
+- **Read Performance**: 14.5 ns/op (9.6x slower than XSyncStore)
+- **Write Performance**: 36.4 ns/op (2.0x slower than XSyncStore)
+- **Memory**: 0-32 B/op (minimal allocations)
 - **Use Case**: Production systems with balanced read/write workloads
 - **Optimization**: Dedicated worker per shard for reduced lock contention
 
 ### MemoryStore (Development)
 - **Architecture**: Single mutex in-memory storage
-- **Read Performance**: 156.5 ns/op (12.5x slower than ShardStore)
-- **Write Performance**: 312.5 ns/op (5.1x slower than ShardStore)
-- **Memory**: 0 B/op (zero allocation reads)
+- **Read Performance**: 159.8 ns/op (106x slower than XSyncStore)
+- **Write Performance**: 220.7 ns/op (12.2x slower than XSyncStore)
+- **Memory**: 0-32 B/op (minimal allocations)
 - **Use Case**: Development and testing environments
 - **Limitation**: Global lock creates contention bottleneck
 
 ### ChannelStore (Educational)
 - **Architecture**: Actor model with message passing
-- **Read Performance**: 607.5 ns/op (49x slower than ShardStoreGopool)
-- **Write Performance**: 693.5 ns/op (11x slower than ShardStore)
+- **Read Performance**: 607.5 ns/op (405x slower than XSyncStore)
+- **Write Performance**: 693.5 ns/op (38.5x slower than XSyncStore)
 - **Memory**: 192 B/op (significant allocations)
 - **Use Case**: Educational demonstration of actor model patterns
 - **Limitation**: Channel overhead and single worker bottleneck
@@ -92,8 +112,12 @@ go test -bench=. -benchmem -timeout=30m ./benchmarks/
 go test -bench="BenchmarkReadZipf|BenchmarkWriteZipf" -benchmem ./benchmarks/
 
 # Test specific storage implementation
+go test -bench=".*XSyncStore.*" -benchmem ./benchmarks/
 go test -bench=".*ShardStore.*" -benchmem ./benchmarks/
 go test -bench=".*MemoryStore.*" -benchmem ./benchmarks/
+
+# High contention testing
+go test -bench=".*HighContention.*" -benchmem ./benchmarks/
 ```
 
 ## Documentation

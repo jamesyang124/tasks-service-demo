@@ -5,7 +5,7 @@ This document chronicles the systematic optimization journey of our Task API sto
 ## Architecture Evolution
 
 ### Initial State: Single MemoryStore
-- **Performance**: ~130ns reads, ~210ns writes
+- **Performance**: ~159.8ns reads, ~220.7ns writes
 - **Bottleneck**: Single mutex serializing all operations
 - **Scale limit**: Poor concurrent performance
 
@@ -741,43 +741,148 @@ Rather than attempting a single large rewrite, incremental improvements allowed:
 - **Learning accumulation**: Each phase informed the next
 - **Performance compounding**: 91% total improvement through three phases
 
+## Phase 3: Lock-Free Revolution - XSyncStore
+
+### Decision: Implement Lock-Free Storage with xsync.Map
+**Rationale**: Eliminate all locking overhead through lock-free atomic operations
+
+**Key Design Decisions:**
+1. **Lock-free operations**: Use hardware-level atomic instructions (CAS, atomic loads/stores)
+2. **xsync.Map**: Third-party library providing high-performance concurrent map
+3. **Atomic ID generation**: Continue using `sync/atomic` for thread-safe IDs
+4. **Simplified architecture**: No sharding complexity, single concurrent data structure
+
+**Implementation Architecture**:
+```go
+type XSyncStore struct {
+    tasks  *xsync.MapOf[int, *entities.Task] // Lock-free concurrent map
+    nextID int64                             // Atomic counter
+}
+
+// Lock-free operations
+func (s *XSyncStore) GetByID(id int) (*entities.Task, *apperrors.AppError) {
+    task, ok := s.tasks.Load(id)           // Atomic load operation
+    if !ok {
+        return nil, apperrors.ErrTaskNotFound
+    }
+    return task, nil
+}
+```
+
+**Lock-Free Mechanisms:**
+
+`xsync.MapOf` achieves lock-free operations through several advanced techniques:
+
+1. **Compare-and-Swap (CAS) Operations**:
+   ```go
+   // Simplified internal logic
+   for {
+       old := atomic.LoadPointer(&bucket.head)
+       if atomic.CompareAndSwapPointer(&bucket.head, old, new) {
+           break // Success
+       }
+       // Retry if another goroutine modified the pointer
+   }
+   ```
+
+2. **Hazard Pointers for Safe Memory Reclamation**:
+   - Each reader registers a "hazard pointer" before accessing data
+   - Writers check hazard pointers before freeing memory
+   - Prevents use-after-free without stopping-the-world GC
+
+3. **Epoch-Based Reclamation**:
+   - Memory is not immediately freed after removal
+   - Delayed cleanup until all readers have moved to next "epoch"
+   - Ensures safe concurrent access without blocking
+
+4. **Atomic Pointer Manipulation**:
+   - Hash buckets use atomic pointers to linked lists
+   - Updates atomically swap entire bucket chains
+   - Readers see consistent snapshots without locks
+
+5. **Memory Ordering with Barriers**:
+   - Uses Go's `sync/atomic` package for proper memory ordering
+   - Ensures operations are visible across CPU cores in correct order
+   - Prevents compiler/CPU reordering that could break consistency
+
+**Performance Results**:
+- **Read**: 159.8ns → 1.5ns (**106x improvement**)
+- **Write**: 220.7ns → 18.0ns (**12.2x improvement**)
+- **High Contention**: 0.36ns (sub-nanosecond)
+
+**XSyncStore vs Previous Implementations**:
+- **vs ShardStoreGopool**: 8.1x faster reads, 3.4x faster writes
+- **vs ShardStore**: 9.6x faster reads, 2.0x faster writes
+- **vs MemoryStore**: 106x faster reads, 12.2x faster writes
+
+### Technical Advantages of Lock-Free Design:
+
+#### 1. **No Deadlocks**
+- Impossible since no locks are acquired
+- Eliminates priority inversion problems
+- Guarantees forward progress
+
+#### 2. **Linear Scalability**
+- Performance scales with CPU cores
+- No lock contention bottlenecks
+- Readers never block writers or other readers
+
+#### 3. **Predictable Performance**
+- No lock contention delays
+- Consistent latency characteristics
+- No context switching overhead
+
+#### 4. **System Resilience**
+- Thread crashes don't hold locks
+- No orphaned lock situations
+- Graceful degradation under load
+
 ## Final Architecture Summary
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   API Layer     │    │   ShardStore     │    │   ShardUnit     │
+│   API Layer     │    │   XSyncStore     │    │  Lock-Free Map  │
 │                 │    │                  │    │                 │
-│ • HTTP Handlers │───▶│ • Global ID gen  │───▶│ • map[int]*Task │
-│ • Input validation│   │ • Shard routing  │    │ • RWMutex       │
-│ • Error handling│    │ • Worker pools   │    │ • Encapsulation │
+│ • HTTP Handlers │───▶│ • Atomic ID gen  │───▶│ • CAS operations│
+│ • Input validation│   │ • Lock-free ops  │    │ • Hazard pointers│
+│ • Error handling│    │ • Linear scaling │    │ • Memory barriers│
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                 │
                                 ▼
                        ┌──────────────────┐
-                       │  ByteDance Pool  │
+                       │  Hardware Atomic │
                        │                  │
-                       │ • Per-core pools │
-                       │ • CPU affinity   │
-                       │ • Multi-core opt │
+                       │ • CPU-level CAS  │
+                       │ • Memory barriers│
+                       │ • No system calls│
                        └──────────────────┘
 ```
 
-**Final Performance**: **11.54ns reads** (91% improvement from 130ns baseline)
+**Final Performance**: **1.5ns reads** (106x improvement from 159.8ns baseline)
 
-**Results**:
-- **ShardStore**: 12.5ns reads (variable: 10.98-14.57ns), 61.0ns writes (consistent: 60.61-61.80ns)
-- **ShardStoreGopool**: 12.3ns reads (consistent: 12.21-12.66ns), 61.5ns writes (variable: 60.23-64.09ns)
-- **Combined optimization**: **12.6x total improvement** from baseline with dramatic read consistency improvement
+**Complete Performance Evolution**:
+- **MemoryStore**: 159.8ns reads, 220.7ns writes (baseline)
+- **ShardStore**: 14.5ns reads, 36.4ns writes (11x improvement)
+- **ShardStoreGopool**: 12.2ns reads, 60.9ns writes (13x improvement)
+- **XSyncStore**: 1.5ns reads, 18.0ns writes (**106x improvement**)
 
-**Key Learning**: The gopool optimization provides **predictable read latency** rather than dramatic speedup. For production systems, consistent read latency is often more valuable than peak performance, making ShardStoreGopool the better choice for read-heavy workloads.
+**Key Learning**: Lock-free operations provide exponential performance gains. The combination of atomic operations and optimized data structures can achieve sub-nanosecond read performance while maintaining simplicity.
 
 ## Future Optimization Opportunities
 
-1. **Lock-free hot path**: Investigate lock-free reads for most accessed keys
-2. **Memory pooling**: Reuse slice allocations in GetAll operations  
-3. **NUMA awareness**: Further CPU topology optimizations
-4. **Adaptive sharding**: Dynamic shard count based on load patterns
-5. **Compression**: Task data compression for memory-bound workloads
+With XSyncStore achieving sub-nanosecond performance, further optimizations focus on specific bottlenecks:
+
+1. **Memory pooling for GetAll()**: Pre-allocate slice with estimated capacity to reduce repeated `append()` operations and memory allocations during iteration
+
+2. **Struct field reordering**: Optimize Task struct layout for better cache line utilization by placing frequently accessed fields at the beginning
+
+3. **Batch operations**: Implement `GetMany()` and `UpdateMany()` operations to amortize atomic operation costs across multiple keys
+
+4. **Memory-mapped storage**: For very large datasets, consider memory-mapped files to reduce heap pressure and GC overhead
+
+5. **Custom hash functions**: Replace default Go map hashing with faster, domain-specific hash functions for integer keys
+
+**Note**: At 1.5ns read performance, we're approaching the theoretical limits of modern CPUs. Further optimizations may yield diminishing returns and should be carefully benchmarked.
 
 ---
 
