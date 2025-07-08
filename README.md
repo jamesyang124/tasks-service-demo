@@ -330,10 +330,11 @@ STORAGE_TYPE=memory go run ./cmd/tasks-service-demo/
 - **Baseline (MemoryStore)**: 156.5ns reads, 312.5ns writes
 - **Optimized (ShardStoreGopool)**: 12.40ns reads, 62.69ns writes
 - **Improvement**: 12.6x faster reads, 5.0x faster writes
+- **Source**: Reduced lock contention and optimized memory layout
 
 ### Benchmark Results
 
-**Current Performance Results (Apple M4 Pro):**
+**Current Performance Results:**
 
 | Storage Implementation | Read Performance | Write Performance | Memory Allocations | Production Ready |
 |----------------------|------------------|-------------------|-------------------|------------------|
@@ -463,7 +464,7 @@ tasks-service-demo/
 
 - **Framework**: Fiber v2 (high-performance Go web framework)
 - **Storage**: Multiple implementations with sharded optimization (12.6x performance improvement)
-- **Concurrency**: Sharded storage with per-core worker pools
+- **Concurrency**: Sharded storage with reduced lock contention
 - **Performance**: 12.40ns reads, 62.69ns writes (ShardStoreGopool)
 - **Thread Safety**: Optimized locking strategies (RWMutex, atomic operations)
 - **Benchmarking**: 1M dataset benchmarks with realistic workload patterns

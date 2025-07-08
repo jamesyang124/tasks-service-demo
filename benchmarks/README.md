@@ -63,7 +63,6 @@ go test -bench=".*MemoryStore.*" -benchmem ./benchmarks/
 - **Read Performance**: 12.40 ns/op (ByteDance gopool optimization)
 - **Write Performance**: 62.69 ns/op
 - **Memory Allocations**: 0 B/op (zero allocation reads)
-- **Optimized for**: M4 Pro 14-core per-core worker pools
 
 ### ShardStore (Dedicated Workers)  
 - **Read Performance**: 12.55 ns/op (dedicated worker optimization)
@@ -112,7 +111,7 @@ go test -bench=".*MemoryStore.*" -benchmem ./benchmarks/
 ### Phase 3: ByteDance Gopool Optimization
 - **Additional 1.2% read improvement** with per-core worker optimization
 - Better CPU utilization on multi-core systems
-- Optimized for Apple M4 Pro 14-core architecture
+- Optimized for multi-core systems
 - **Combined result**: **12.6x faster than baseline**
 
 ## Benchmark Output Organization
@@ -190,7 +189,7 @@ defer store.Close()
 ### High-Traffic Production
 - **Use**: ShardStoreGopool
 - **Reason**: Best read performance (12.40ns), optimized for multi-core
-- **Configuration**: 32 shards for M4 Pro, adjust for your CPU cores
+- **Configuration**: 32 shards (adjust for your CPU cores)
 
 ### Balanced Production
 - **Use**: ShardStore  

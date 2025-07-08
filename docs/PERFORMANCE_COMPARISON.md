@@ -49,7 +49,7 @@ Quick reference guide for storage implementation performance characteristics. Fo
 - **Write Performance**: 62.69 ns/op
 - **Memory**: 0 B/op (zero allocation reads)
 - **Use Case**: High-traffic production systems
-- **Optimization**: Per-core worker pools for optimal CPU utilization
+- **Optimization**: Consistent hashing with ByteDance gopool for reduced contention
 
 ### ShardStore (Alternative)
 - **Architecture**: Sharded storage with dedicated workers
@@ -57,7 +57,7 @@ Quick reference guide for storage implementation performance characteristics. Fo
 - **Write Performance**: 61.44 ns/op (best)
 - **Memory**: 0 B/op (zero allocation reads)
 - **Use Case**: Production systems with balanced read/write workloads
-- **Optimization**: Dedicated worker per shard for cache locality
+- **Optimization**: Dedicated worker per shard for reduced lock contention
 
 ### MemoryStore (Development)
 - **Architecture**: Single mutex in-memory storage

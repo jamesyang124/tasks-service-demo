@@ -16,7 +16,7 @@ This document chronicles the systematic optimization journey of our Task API sto
 
 **Key Design Decisions:**
 1. **Power-of-2 sharding**: Bitwise operations (`id & mask`) faster than modulo
-2. **Dedicated worker per shard**: Optimal CPU cache locality for bulk operations  
+2. **Dedicated worker per shard**: Reduced lock contention for bulk operations  
 3. **Atomic ID generation**: Lock-free global ID using `sync/atomic`
 4. **Pre-allocated capacity**: Reduce map rehashing during growth
 
@@ -346,44 +346,42 @@ func (s *ShardStoreGopool) GetAll() []*Task {
 ```
 
 **Results**:
-- **Read**: 12.5ns → 12.3ns (2% improvement, dramatic consistency improvement)
+- **Read**: 12.5ns → 12.3ns (2% improvement, better consistency)
 - **Read Consistency**: Reduced variance from 3.59ns range to 0.45ns range (87% less variance)
 - **Write**: 61.0ns → 61.5ns (1% regression, slightly higher variance)
 - **Write Consistency**: Increased variance from 1.19ns to 3.86ns range
 
-**Key Insight**: The gopool optimization provides **dramatic consistency benefits for reads** rather than speed improvements. The per-core worker pools eliminate read performance variance, making latency much more predictable for production systems.
+**Key Insight**: The gopool optimization provides **consistency benefits for reads** rather than speed improvements. The consistent hashing with worker pools reduces read performance variance, making latency more predictable for production systems.
 
 **Specific Improvements**:
 
-1. **CPU Cache Locality**:
+1. **Consistent Work Distribution**:
    ```
-   Before: Any worker can process any shard (cache misses)
-   After:  Shard N always processed by Core (N % numCores) (cache hits)
+   Before: Any worker can process any shard (unpredictable)
+   After:  Shard N consistently mapped to Core (N % numCores) (predictable)
    
-   Cache Hit Rate Improvement:
-   - L1 Cache: 45% → 78% hit rate
-   - L2 Cache: 67% → 89% hit rate
+   Performance Consistency Improvement:
+   - Read variance: 3.59ns → 0.45ns range (87% reduction)
+   - More predictable latency patterns
    ```
 
-2. **NUMA Awareness** (M4 Pro specific):
+2. **Multi-core Configuration**:
    ```go
-   // M4 Pro has 2 performance clusters (8+6 cores)
-   // Mapping ensures efficient core utilization:
-   cores[0-7]:  Performance cluster (P-cores)
-   cores[8-13]: Efficiency cluster (E-cores)
+   // ByteDance gopool distributes work across available cores
+   // Uses runtime.NumCPU() to detect core count
    
-   // ByteDance gopool respects this topology
+   // Automatically scales to available hardware
    ```
 
-3. **Goroutine Scheduling Efficiency**:
+3. **Work Distribution Efficiency**:
    ```
-   Before: OS scheduler moves goroutines between cores (expensive)
-   After:  Workers pinned to cores (reduced context switching)
+   Before: Generic work distribution (unpredictable performance)
+   After:  Consistent hash-based work mapping (predictable performance)
    
-   Context Switch Reduction: ~40% fewer switches
+   Performance Variance Reduction: ~87% less read variance
    ```
 
-**Why It Worked**: Leveraged hardware topology for optimal performance
+**Why It Worked**: Consistent work distribution reduces performance variance
 
 ---
 
@@ -476,10 +474,10 @@ type ShardUnit struct {
    - **Solution**: Distributed locking across 32 shards
    - **Result**: 32x reduction in lock contention
 
-2. **ShardStore → ShardStoreGopool** (12% additional improvement):
-   - **Problem**: Workers jumped between CPU cores (cache misses)
-   - **Solution**: Per-core worker pools with consistent shard mapping
-   - **Result**: 75% improvement in CPU cache hit rates
+2. **ShardStore → ShardStoreGopool** (consistency improvement):
+   - **Problem**: Unpredictable performance variance
+   - **Solution**: Consistent hashing with ByteDance gopool
+   - **Result**: 87% reduction in read performance variance
 
 3. **MemoryStore → ShardUnit** (Additional 24% improvement):
    - **Problem**: Each shard carried 32 bytes of unused fields
@@ -499,10 +497,10 @@ Lock-free Atomic > Fine-grained Mutexes > Coarse-grained Mutexes > Channels
     11.54ns              10.28ns              155.9ns           666.1ns
 ```
 
-#### **CPU Cache Impact**:
+#### **Performance Characteristics**:
 ```
-Direct Memory Access: 1-3 cycles (L1 cache hit)
-Shared Memory + Mutex: 10-50 cycles (L2/L3 cache)
+Direct Memory Access: 1-3 cycles (optimized path)
+Shared Memory + Mutex: 10-50 cycles (sharded approach)
 Channel Communication: 1000-2000 cycles (context switches)
 ```
 
@@ -624,7 +622,7 @@ Instead of persisting with ChannelStore, we invested effort in:
 ## Phase 2: Per-Core Worker Optimization
 
 ### Problem Analysis
-User environment: **Apple M4 Pro (14 cores)**
+User environment: **Multi-core system**
 Question: *"per-core dispatcher + mini pool? each cpu have goroutine pool?"*
 
 ### Worker Pool Options Evaluated:
@@ -644,7 +642,7 @@ Question: *"per-core dispatcher + mini pool? each cpu have goroutine pool?"*
 **Decision Rationale**: ByteDance gopool chosen for:
 1. **Per-core worker pools**: Better CPU cache utilization
 2. **Production proven**: Used in high-scale ByteDance services
-3. **M4 Pro optimization**: Excellent for 14-core architecture
+3. **Multi-core optimization**: Excellent for multi-core systems
 
 ### Implementation Strategy: ShardStoreGopool
 ```go
@@ -760,7 +758,7 @@ Rather than attempting a single large rewrite, incremental improvements allowed:
                        │                  │
                        │ • Per-core pools │
                        │ • CPU affinity   │
-                       │ • M4 Pro optimiz │
+                       │ • Multi-core opt │
                        └──────────────────┘
 ```
 

@@ -241,6 +241,9 @@ func TestUpdateTask_Success(t *testing.T) {
 	if updatedTask.Status != 1 {
 		t.Errorf("Expected updated status 1, got %d", updatedTask.Status)
 	}
+	if updatedTask.ID != createdTask.ID {
+		t.Errorf("Expected ID to remain %d, got %d", createdTask.ID, updatedTask.ID)
+	}
 }
 
 func TestUpdateTask_NotFound(t *testing.T) {
