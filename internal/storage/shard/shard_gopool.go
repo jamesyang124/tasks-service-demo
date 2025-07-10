@@ -70,7 +70,7 @@ func NewShardStoreGopool(numShards int) *ShardStoreGopool {
 	}
 }
 
-// getCoreIndex returns the core index for a given shard using consistent hashing
+// getCoreIndex returns the pool index for a given shard using bitwise modulo
 func (s *ShardStoreGopool) getCoreIndex(shardIndex int) int {
 	return shardIndex & s.coreMask
 }
@@ -128,7 +128,7 @@ func (s *ShardStoreGopool) GetAll() []*entities.Task {
 		shardIndex := i
 		shard := s.shards[i]
 
-		// Select core pool using consistent hashing
+		// Select pool using bitwise modulo
 		coreIndex := s.getCoreIndex(shardIndex)
 		pool := s.pools[coreIndex]
 

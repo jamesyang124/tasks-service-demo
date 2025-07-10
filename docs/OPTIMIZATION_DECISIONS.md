@@ -320,25 +320,25 @@ func (s *ShardStore) GetByID(id int) (*Task, error) {
 
 ---
 
-#### 🏆 **ShardStoreGopool: Per-Core Worker Optimization**
+#### 🏆 **ShardStoreGopool: Worker Pool Management**
 
-**Key Improvement**: **Generic Workers → Per-Core Affinity**
+**Key Improvement**: **Generic Workers → Consistent Pool Distribution**
 
 ```go
 type ShardStoreGopool struct {
     shards    []*ShardUnit
-    pools     []gopool.Pool    // ← One pool per CPU core
+    pools     []gopool.Pool    // ← One pool per logical CPU core
     numCores  int
-    coreMask  int              // ← Core selection mask
+    coreMask  int              // ← Pool selection mask
 }
 
 func (s *ShardStoreGopool) GetAll() []*Task {
     for i, shard := range s.shards {
-        coreIndex := i & s.coreMask           // ← Consistent core mapping
-        pool := s.pools[coreIndex]            // ← Core-specific pool
+        poolIndex := i & s.coreMask           // ← Consistent pool mapping
+        pool := s.pools[poolIndex]            // ← Pool-specific workers
         
-        pool.Go(func() {                      // ← Work stays on same core
-            // Process shard on its assigned core
+        pool.Go(func() {                      // ← Work distributed across pools
+            // Process shard using pooled goroutines
             collectFromShard(shard, results)
         })
     }
@@ -351,37 +351,37 @@ func (s *ShardStoreGopool) GetAll() []*Task {
 - **Write**: 61.0ns → 61.5ns (1% regression, slightly higher variance)
 - **Write Consistency**: Increased variance from 1.19ns to 3.86ns range
 
-**Key Insight**: The gopool optimization provides **consistency benefits for reads** rather than speed improvements. The consistent hashing with worker pools reduces read performance variance, making latency more predictable for production systems.
+**Key Insight**: The gopool optimization provides **consistency benefits for reads** rather than speed improvements. The consistent work distribution across goroutine pools reduces read performance variance, making latency more predictable for production systems.
 
 **Specific Improvements**:
 
 1. **Consistent Work Distribution**:
    ```
    Before: Any worker can process any shard (unpredictable)
-   After:  Shard N consistently mapped to Core (N % numCores) (predictable)
+   After:  Shard N consistently mapped to Pool (N % numCores) (predictable)
    
    Performance Consistency Improvement:
    - Read variance: 3.59ns → 0.45ns range (87% reduction)
    - More predictable latency patterns
    ```
 
-2. **Multi-core Configuration**:
+2. **Goroutine Pool Management**:
    ```go
-   // ByteDance gopool distributes work across available cores
-   // Uses runtime.NumCPU() to detect core count
+   // ByteDance gopool manages goroutine pools (not CPU cores)
+   // Uses runtime.NumCPU() to create one pool per logical core
    
-   // Automatically scales to available hardware
+   // Provides goroutine reuse and consistent work distribution
    ```
 
 3. **Work Distribution Efficiency**:
    ```
    Before: Generic work distribution (unpredictable performance)
-   After:  Consistent hash-based work mapping (predictable performance)
+   After:  Simple modulo-based pool mapping (predictable performance)
    
    Performance Variance Reduction: ~87% less read variance
    ```
 
-**Why It Worked**: Consistent work distribution reduces performance variance
+**Why It Worked**: Consistent work distribution across goroutine pools reduces performance variance
 
 ---
 
@@ -476,7 +476,7 @@ type ShardUnit struct {
 
 2. **ShardStore → ShardStoreGopool** (consistency improvement):
    - **Problem**: Unpredictable performance variance
-   - **Solution**: Consistent hashing with ByteDance gopool
+   - **Solution**: Consistent work distribution with ByteDance gopool worker management
    - **Result**: 87% reduction in read performance variance
 
 3. **MemoryStore → ShardUnit** (Additional 24% improvement):
@@ -646,11 +646,11 @@ Question: *"per-core dispatcher + mini pool? each cpu have goroutine pool?"*
 
 ### Implementation Strategy: ShardStoreGopool
 ```go
-// Consistent hashing: shard → core mapping
-coreIndex := shardIndex & s.coreMask
-pool := s.pools[coreIndex]
+// Simple modulo mapping: shard → pool mapping
+poolIndex := shardIndex & s.coreMask
+pool := s.pools[poolIndex]
 
-// Submit work to core-specific pool
+// Submit work to pool-specific workers
 pool.Go(func() { ... })
 ```
 
@@ -660,7 +660,7 @@ pool.Go(func() { ... })
 - **Write**: 61.0ns → 61.5ns
 - **Write Consistency**: Increased variance from 1.19ns to 3.86ns range
 
-**Key Insight**: The gopool optimization provides **dramatic consistency benefits for reads** rather than speed improvements. The per-core worker pools eliminate read performance variance, making latency much more predictable for production systems.
+**Key Insight**: The gopool optimization provides **dramatic consistency benefits for reads** rather than speed improvements. The consistent goroutine pool distribution eliminates read performance variance, making latency much more predictable for production systems.
 
 ### Concurrency Analysis
 **Question**: *"Does each shard have its own pool for goroutines, might have chance to interleave processing for same shard resource unit?"*

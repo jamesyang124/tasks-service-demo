@@ -461,7 +461,7 @@ tasks-service-demo/
 │   │   │   └── xsync_store_test.go # XSync store tests
 │   │   ├── shard/             # High-Performance Shard Store
 │   │   │   ├── shard.go       # Optimized sharded storage
-│   │   │   ├── shard_gopool.go # ByteDance gopool optimization
+│   │   │   ├── shard_gopool.go # ByteDance gopool worker management
 │   │   │   ├── shard_unit.go  # Lightweight storage units
 │   │   │   ├── shard_utils.go # Utility functions
 │   │   │   └── shard_test.go  # Comprehensive tests
