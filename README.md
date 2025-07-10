@@ -313,9 +313,10 @@ The server will start on `http://localhost:8080`
 
 **XSyncStore** provides superior performance through:
 - **Lock-free operations**: No mutex contention or blocking
-- **Atomic memory access**: Hardware-level CPU optimizations
-- **Sub-nanosecond reads**: Direct memory access patterns
+- **Atomic CAS operations**: Hardware-level Compare-and-Swap instructions
+- **Sub-nanosecond reads**: Direct atomic memory access
 - **Linear scalability**: Performance scales with CPU cores
+- **GC integration**: Go's garbage collector handles memory safety automatically
 
 ### Configuration
 
@@ -369,10 +370,17 @@ For a service handling **1 million requests/second**:
 
 | Storage Type | CPU Usage | Response Time | Max Throughput |
 |-------------|-----------|---------------|----------------|
-| **XSyncStore** | ~2% CPU | <1µs | 1M+ RPS |
-| **ShardStoreGopool** | ~18% CPU | ~12µs | 800K RPS |
-| **ShardStore** | ~22% CPU | ~14µs | 700K RPS |
-| **MemoryStore** | ~95% CPU | ~159µs | 100K RPS |
+| **XSyncStore** | ~0.15% CPU | 1.5ns | 5M+ RPS |
+| **ShardStoreGopool** | ~1.22% CPU | 12.2ns | 2M+ RPS |
+| **ShardStore** | ~1.45% CPU | 14.5ns | 1.5M+ RPS |
+| **MemoryStore** | ~15.98% CPU | 159.8ns | 200K RPS |
+
+**CPU Usage Calculation Formula:**
+```
+CPU Usage (%) = (RPS × ns_per_operation) / 1,000,000,000 × 100
+```
+
+*Example: XSyncStore at 1M RPS = (1,000,000 × 1.5ns) / 1,000,000,000 = 0.15% CPU*
 
 ## Development
 
@@ -496,7 +504,7 @@ tasks-service-demo/
 - **Storage**: Lock-free concurrent map with XSync implementation (106x performance improvement)
 - **Concurrency**: Lock-free atomic operations with linear CPU core scalability
 - **Performance**: 1.5ns reads, 18ns writes (XSyncStore)
-- **Thread Safety**: Lock-free atomic memory operations (CAS, hazard pointers)
+- **Thread Safety**: Lock-free atomic memory operations (CAS, atomic pointers, GC integration)
 - **Benchmarking**: 1M dataset benchmarks with realistic workload patterns and Zipf distribution
 - **Logging**: Structured logging with Uber Zap
 - **Configuration**: Environment-based configuration with dotenv support

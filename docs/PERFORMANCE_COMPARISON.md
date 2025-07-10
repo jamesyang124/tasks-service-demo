@@ -60,7 +60,7 @@ Quick reference guide for storage implementation performance characteristics. Fo
 - **Write Performance**: 18.0 ns/op (best - 12.2x faster than MemoryStore)
 - **Memory**: 0-48 B/op (minimal allocations)
 - **Use Case**: All production systems, especially high-concurrency
-- **Optimization**: Lock-free atomic operations, CAS loops, hazard pointers
+- **Optimization**: Lock-free atomic operations, CAS loops, GC integration
 - **Advantages**: No deadlocks, linear scalability, predictable performance
 
 ### ShardStoreGopool (High Performance Alternative)

@@ -785,15 +785,15 @@ func (s *XSyncStore) GetByID(id int) (*entities.Task, *apperrors.AppError) {
    }
    ```
 
-2. **Hazard Pointers for Safe Memory Reclamation**:
-   - Each reader registers a "hazard pointer" before accessing data
-   - Writers check hazard pointers before freeing memory
-   - Prevents use-after-free without stopping-the-world GC
+2. **Garbage Collector Integration**:
+   - Go's GC automatically handles memory safety for concurrent access
+   - No need for manual memory reclamation techniques
+   - Removed pointers become eligible for GC when no longer referenced
 
-3. **Epoch-Based Reclamation**:
-   - Memory is not immediately freed after removal
-   - Delayed cleanup until all readers have moved to next "epoch"
-   - Ensures safe concurrent access without blocking
+3. **Lock-Free Linked List Management**:
+   - Hash buckets contain atomic pointers to linked list nodes
+   - Node insertion/deletion uses CAS operations on next pointers
+   - GC handles cleanup of unreachable nodes automatically
 
 4. **Atomic Pointer Manipulation**:
    - Hash buckets use atomic pointers to linked lists
