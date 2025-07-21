@@ -38,7 +38,6 @@ func BenchmarkShardStore_Comparison(b *testing.B) {
 
 	b.Run("Current", func(b *testing.B) {
 		store := shard.NewShardStore(shardCount)
-		defer store.Close()
 		BenchmarkReadZipf(b, store, "ShardStore_Current")
 	})
 
@@ -55,7 +54,6 @@ func BenchmarkGetAll_Comparison(b *testing.B) {
 
 	b.Run("Current", func(b *testing.B) {
 		store := shard.NewShardStore(32)
-		defer store.Close()
 
 		// Setup smaller dataset
 		for i := 1; i <= setupSize; i++ {

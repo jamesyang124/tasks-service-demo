@@ -11,19 +11,16 @@ import (
 
 func BenchmarkReadZipf_ShardStore(b *testing.B) {
 	store := shard.NewShardStore(32) // 32 shards for 1M dataset
-	defer store.Close()
 	BenchmarkReadZipf(b, store, "ShardStore")
 }
 
 func BenchmarkWriteZipf_ShardStore(b *testing.B) {
 	store := shard.NewShardStore(32)
-	defer store.Close()
 	BenchmarkWriteZipf(b, store, "ShardStore")
 }
 
 func BenchmarkDistributedRead_ShardStore(b *testing.B) {
 	store := shard.NewShardStore(32)
-	defer store.Close()
 	PopulateStore(b, store, "ShardStore Distributed Read")
 
 	b.ResetTimer()
@@ -40,7 +37,6 @@ func BenchmarkDistributedRead_ShardStore(b *testing.B) {
 
 func BenchmarkDistributedWrite_ShardStore(b *testing.B) {
 	store := shard.NewShardStore(32)
-	defer store.Close()
 	PopulateStore(b, store, "ShardStore Distributed Write")
 
 	b.ResetTimer()
@@ -60,7 +56,6 @@ func BenchmarkDistributedWrite_ShardStore(b *testing.B) {
 
 func BenchmarkDistributedMixed_ShardStore(b *testing.B) {
 	store := shard.NewShardStore(32)
-	defer store.Close()
 	PopulateStore(b, store, "ShardStore Distributed Mixed")
 
 	b.ResetTimer()
@@ -88,7 +83,6 @@ func BenchmarkDistributedMixed_ShardStore(b *testing.B) {
 
 func BenchmarkShardStore_GetAll(b *testing.B) {
 	store := shard.NewShardStore(32)
-	defer store.Close()
 
 	PopulateStore(b, store, "ShardStore GetAll")
 
@@ -102,8 +96,7 @@ func BenchmarkShardStore_CoreUtilization(b *testing.B) {
 	for _, shardCount := range []int{4, 8, 16, 32} {
 		b.Run(fmt.Sprintf("Shards_%d", shardCount), func(b *testing.B) {
 			store := shard.NewShardStore(shardCount)
-			defer store.Close()
-
+		
 			BenchmarkReadZipf(b, store, fmt.Sprintf("ShardStore_%dShards", shardCount))
 		})
 	}
